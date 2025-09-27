@@ -1,0 +1,56 @@
+[project]
+name = "sleep-quality-advisor-backend"
+version = "0.1.0"
+description = "Backend for Sleep Quality Advisor"
+requires-python = ">=3.12"
+readme = "../README.md"
+license = { file = "../LICENSE" }
+dependencies = [
+  "aws-lambda-powertools",
+  "boto3",
+  "typing-extensions",
+  "pydantic",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff",
+  "mypy",
+  "mypy-boto3-dynamodb",
+  "mypy-boto3-secretsmanager",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "preserve"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = ["E","F","I","B","UP","ANN","W"]
+ignore = ["ANN101","ANN102"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+warn_return_any = true
+warn_unused_ignores = true
+show_error_codes = true
+namespace_packages = true
+mypy_path = "src"
+plugins = []
+
+[tool.uv]
+
+[dependency-groups]
+dev = [
+    "taskipy>=1.14.1",
+]
+
+[tool.taskipy.tasks]
+lint = "ruff check ."
+format = "ruff format ."
+typecheck = "mypy --config-file mypy.ini src"

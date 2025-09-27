@@ -1,0 +1,287 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Sleep Quality Advisor - Backend
+
+Parameters:
+  IngestSharedSecretName:
+    Type: String
+    Default: ingest/shared/secret
+    Description: Secrets Manager secret name for the shared secret used by the authorizer
+  FitbitRefreshSecretName:
+    Type: String
+    Default: fitbit/refresh/token
+  FitbitClientSecretName:
+    Type: String
+    Default: fitbit/client/secret
+  ScheduleExpression:
+    Type: String
+    Default: cron(10 7 * * ? *) # 07:10 UTC daily
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+    Tracing: Active
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        ENV_READINGS_TABLE: !Ref EnvReadingsTable
+        SLEEP_SESSIONS_TABLE: !Ref SleepSessionsTable
+        INGEST_SHARED_SECRET_NAME: !Ref IngestSharedSecretName
+    Layers: []
+
+Resources:
+  # DynamoDB tables
+  EnvReadingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: day
+          AttributeType: S
+        - AttributeName: ts_min
+          AttributeType: N
+      KeySchema:
+        - AttributeName: day
+          KeyType: HASH
+        - AttributeName: ts_min
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
+  SleepSessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sleepDate
+          AttributeType: S
+        - AttributeName: segmentStart
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sleepDate
+          KeyType: HASH
+        - AttributeName: segmentStart
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
+  # SQS Queues
+  EnvIngestDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600 # 14 days
+
+  EnvIngestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt EnvIngestDLQ.Arn
+        maxReceiveCount: 5
+
+  # Lambda: SQS Consumer -> DynamoDB writer
+  EnvIngestConsumer:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: env_ingest_consumer/handler.lambda_handler
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt EnvReadingsTable.Arn
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt EnvIngestQueue.Arn
+            BatchSize: 10
+            Enabled: true
+
+  # Lambda: Authorizer for API Gateway to validate shared secret header
+  EnvIngestAuthorizer:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: env_ingest_authorizer/handler.lambda_handler
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: '*'
+
+  # Fitbit callback Lambda
+  FitbitCallback:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: fitbit_callback/handler.lambda_handler
+      Environment:
+        Variables:
+          FITBIT_REFRESH_SECRET_NAME: !Ref FitbitRefreshSecretName
+          FITBIT_CLIENT_SECRET_NAME: !Ref FitbitClientSecretName
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:PutSecretValue
+              Resource: !Ref FitbitRefreshSecretName
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: '*'
+      Events:
+        HttpCallback:
+          Type: Api
+          Properties:
+            RestApiId: !Ref IngestApi
+            Path: /fitbit/callback
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  # Fitbit fetch Lambda (scheduled)
+  FitbitFetch:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: fitbit_fetch/handler.lambda_handler
+      Timeout: 60
+      Environment:
+        Variables:
+          FITBIT_REFRESH_SECRET_NAME: !Ref FitbitRefreshSecretName
+          FITBIT_CLIENT_SECRET_NAME: !Ref FitbitClientSecretName
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt SleepSessionsTable.Arn
+
+  FitbitFetchSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Daily schedule for Fitbit fetch
+      ScheduleExpression: !Ref ScheduleExpression
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt FitbitFetch.Arn
+          Id: FitbitFetchTarget
+  FitbitFetchPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref FitbitFetch
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt FitbitFetchSchedule.Arn
+
+  # API Gateway (REST) -> SQS with Lambda Authorizer
+  IngestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      EndpointConfiguration:
+        Types: [REGIONAL]
+
+  IngestApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - IngestPostMethod
+    Properties:
+      RestApiId: !Ref IngestApi
+      Description: Deployment for ingest API
+
+  IngestApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref IngestApi
+      DeploymentId: !Ref IngestApiDeployment
+      StageName: prod
+      TracingEnabled: true
+
+  IngestResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref IngestApi
+      ParentId: !GetAtt IngestApi.RootResourceId
+      PathPart: ingest
+
+  
+
+  IngestAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      RestApiId: !Ref IngestApi
+      Type: TOKEN
+      AuthorizerUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${EnvIngestAuthorizer.Arn}/invocations
+      IdentitySource: method.request.header.X-Secret
+      IdentityValidationExpression: ".+"
+      AuthorizerResultTtlInSeconds: 60
+  AllowApiGatewayInvokeAuthorizer:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EnvIngestAuthorizer
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${IngestApi}/*/POST/ingest
+
+  ApiGatewaySqsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGwSqsSend
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt EnvIngestQueue.Arn
+
+  IngestPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref IngestApi
+      ResourceId: !Ref IngestResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref IngestAuthorizer
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Credentials: !GetAtt ApiGatewaySqsRole.Arn
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:sqs:path/${AWS::AccountId}/${EnvIngestQueue.QueueName}
+        RequestTemplates:
+          application/json: |
+            Action=SendMessage&MessageBody=$util.urlEncode($util.escapeJavaScript($input.body))
+        PassthroughBehavior: NEVER
+        IntegrationResponses:
+          - StatusCode: 200
+      MethodResponses:
+        - StatusCode: 200
+
+  
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the API stage
+    Value: !Sub https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/prod
