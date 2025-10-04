@@ -9,6 +9,7 @@ from aws_lambda_powertools import Logger
 
 logger = Logger()
 secrets = boto3.client("secretsmanager")
+FITBIT_REFRESH_SECRET_NAME = "FitbitRefreshSecretName"
 
 
 @logger.inject_lambda_context
@@ -17,7 +18,7 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     # In real flow, exchange code for tokens with Fitbit and store refresh token
     params = event.get("queryStringParameters") or {}
     code = params.get("code", "")
-    secret_name = os.environ.get("FitbitRefreshSecretName") or os.environ.get(
+    secret_name = os.environ.get(FITBIT_REFRESH_SECRET_NAME) or os.environ.get(
         "FITBIT_REFRESH_SECRET_NAME", "fitbit/refresh/token"
     )
 
