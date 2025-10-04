@@ -171,23 +171,13 @@ Resources:
               Action:
                 - dynamodb:PutItem
               Resource: !GetAtt SleepSessionsTable.Arn
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Enabled: true
 
-  FitbitFetchSchedule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: Daily schedule for Fitbit fetch
-      ScheduleExpression: !Ref ScheduleExpression
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt FitbitFetch.Arn
-          Id: FitbitFetchTarget
-  FitbitFetchPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref FitbitFetch
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt FitbitFetchSchedule.Arn
 
   # API Gateway (REST) -> SQS with Lambda TOKEN authorizer via SAM Api Auth
   IngestApi:

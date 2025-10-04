@@ -4,15 +4,16 @@ from typing import Any
 
 from aws_lambda_powertools import Logger
 
+from aws_lambda_powertools.utilities.data_classes import EventBridgeEvent, event_source
 from common.ddb import get_dynamodb, put_daily_summary, put_sleep_stage_segment
 from common.models import DailySummaryModel, SleepStageSegmentModel
 
 logger = Logger()
 ddb = get_dynamodb()
 
-
+@event_source(data_class=EventBridgeEvent)
 @logger.inject_lambda_context
-def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
+def lambda_handler(event: EventBridgeEvent, context: object) -> dict[str, Any]:
     # For now, accept pre-fetched data via event for testing; later we will call Fitbit API.
     segments: list[dict[str, Any]] = event.get("segments") or []
     summary: dict[str, Any] | None = event.get("summary")
