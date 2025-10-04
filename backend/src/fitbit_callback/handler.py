@@ -4,11 +4,10 @@ import json
 import os
 from typing import Any
 
-import boto3
 from aws_lambda_powertools import Logger
+from aws_lambda_powertools.utilities import parameters
 
 logger = Logger()
-secrets = boto3.client("secretsmanager")
 FITBIT_REFRESH_SECRET_NAME = "FitbitRefreshSecretName"
 
 
@@ -19,10 +18,11 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
     params = event.get("queryStringParameters") or {}
     code = params.get("code", "")
     secret_name = os.environ.get(FITBIT_REFRESH_SECRET_NAME) or os.environ.get(
-        "FITBIT_REFRESH_SECRET_NAME", "fitbit/refresh/token"
+        FITBIT_REFRESH_SECRET_NAME, "fitbit/refresh/token"
     )
 
     if code:
-        secrets.put_secret_value(SecretId=secret_name, SecretString=code)
+        # Store refresh token via Powertools Parameters utility (Secrets Manager)
+        parameters.set_secret(secret_name, code)
 
     return {"statusCode": 200, "body": json.dumps({"ok": True})}
