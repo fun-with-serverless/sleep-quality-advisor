@@ -188,28 +188,25 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt FitbitFetchSchedule.Arn
 
-  # API Gateway (REST) -> SQS with Lambda Authorizer
+  # API Gateway (REST) -> SQS with Lambda TOKEN authorizer via SAM Api Auth
   IngestApi:
-    Type: AWS::ApiGateway::RestApi
+    Type: AWS::Serverless::Api
     Properties:
-      EndpointConfiguration:
-        Types: [REGIONAL]
-
-  IngestApiDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - IngestPostMethod
-    Properties:
-      RestApiId: !Ref IngestApi
-      Description: Deployment for ingest API
-
-  IngestApiStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      RestApiId: !Ref IngestApi
-      DeploymentId: !Ref IngestApiDeployment
       StageName: prod
+      EndpointConfiguration: REGIONAL
       TracingEnabled: true
+      Auth:
+        DefaultAuthorizer: IngestTokenAuth
+        Authorizers:
+          IngestTokenAuth:
+            FunctionPayloadType: TOKEN
+            FunctionArn: !GetAtt EnvIngestAuthorizer.Arn
+            Identity:
+              Headers:
+                - X-Secret
+              ValidationExpression: ".+"
+
+  
 
   IngestResource:
     Type: AWS::ApiGateway::Resource
@@ -220,22 +217,7 @@ Resources:
 
   
 
-  IngestAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
-    Properties:
-      RestApiId: !Ref IngestApi
-      Type: TOKEN
-      AuthorizerUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${EnvIngestAuthorizer.Arn}/invocations
-      IdentitySource: method.request.header.X-Secret
-      IdentityValidationExpression: ".+"
-      AuthorizerResultTtlInSeconds: 60
-  AllowApiGatewayInvokeAuthorizer:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref EnvIngestAuthorizer
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${IngestApi}/*/POST/ingest
+  
 
   ApiGatewaySqsRole:
     Type: AWS::IAM::Role
@@ -264,7 +246,6 @@ Resources:
       ResourceId: !Ref IngestResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref IngestAuthorizer
       Integration:
         Type: AWS
         IntegrationHttpMethod: POST
