@@ -5,16 +5,17 @@ from typing import Any
 
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.data_classes import event_source
-from aws_lambda_powertools.utilities.parameters import get_secret
 from aws_lambda_powertools.utilities.data_classes.api_gateway_authorizer_event import (
-    APIGatewayAuthorizerTokenEvent,
     APIGatewayAuthorizerResponse,
+    APIGatewayAuthorizerTokenEvent,
 )
+from aws_lambda_powertools.utilities.parameters import get_secret
 
 logger = Logger()
 
 SECRET_HEADER = "X-Secret"
 INGEST_SHARED_SECRET_NAME = "INGEST_SHARED_SECRET_NAME"
+
 
 def _policy(principal_id: str, effect: str, method_arn: str) -> APIGatewayAuthorizerResponse:
     return {

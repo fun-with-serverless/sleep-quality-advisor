@@ -51,5 +51,6 @@ dev = [
 
 [tool.taskipy.tasks]
 lint = "ruff check ."
+lint-fix = "ruff check . --fix"
 format = "ruff format ."
 typecheck = "mypy --config-file mypy.ini src"
