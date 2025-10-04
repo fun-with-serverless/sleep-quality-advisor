@@ -47,6 +47,7 @@ def lambda_handler(event: APIGatewayAuthorizerTokenEvent, context: Any) -> APIGa
     expected = get_secret(secret_name)
 
     if provided == expected:
+        logger.info("Valid secret header")
         return _policy("device", "Allow", method_arn)
 
     logger.warning("Invalid secret header")
