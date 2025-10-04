@@ -13,6 +13,12 @@ Parameters:
   FitbitClientSecretName:
     Type: String
     Default: fitbit/client/secret
+  FitbitClientIdParamName:
+    Type: String
+    Default: fitbit/client/id
+  FitbitCodeVerifierSecretName:
+    Type: String
+    Default: fitbit/code/verifier
   ScheduleExpression:
     Type: String
     Default: cron(10 7 * * ? *) # 07:10 UTC daily
@@ -67,6 +73,35 @@ Resources:
           KeyType: RANGE
       SSESpecification:
         SSEEnabled: true
+
+  # Bootstrap: Fitbit related secrets and parameters with default values
+  FitbitRefreshSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Ref FitbitRefreshSecretName
+      Description: Refresh token for Fitbit OAuth flow
+      SecretString: "<empty>"
+
+  FitbitClientSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Ref FitbitClientSecretName
+      Description: Fitbit API client secret
+      SecretString: "<empty>"
+
+  FitbitCodeVerifierSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Ref FitbitCodeVerifierSecretName
+      Description: Temporary PKCE code_verifier storage for Fitbit authorization
+      SecretString: "<empty>"
+
+  FitbitClientIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Ref FitbitClientIdParamName
+      Type: String
+      Value: "<empty>"
 
   # SQS Queues
   EnvIngestDLQ:
@@ -128,6 +163,8 @@ Resources:
         Variables:
           FITBIT_REFRESH_SECRET_NAME: !Ref FitbitRefreshSecretName
           FITBIT_CLIENT_SECRET_NAME: !Ref FitbitClientSecretName
+          FITBIT_CLIENT_ID_PARAM_NAME: !Ref FitbitClientIdParamName
+          FITBIT_CODE_VERIFIER_SECRET_NAME: !Ref FitbitCodeVerifierSecretName
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -139,12 +176,47 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource: '*'
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: '*'
       Events:
         HttpCallback:
           Type: Api
           Properties:
             RestApiId: !Ref IngestApi
             Path: /fitbit/callback
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  # Fitbit authorize Lambda (redirects to Fitbit OAuth with PKCE)
+  FitbitAuthorize:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: fitbit_authorize/handler.lambda_handler
+      Environment:
+        Variables:
+          FITBIT_CLIENT_ID_PARAM_NAME: !Ref FitbitClientIdParamName
+          FITBIT_CODE_VERIFIER_SECRET_NAME: !Ref FitbitCodeVerifierSecretName
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - secretsmanager:PutSecretValue
+              Resource: !Ref FitbitCodeVerifierSecretName
+      Events:
+        HttpAuthorize:
+          Type: Api
+          Properties:
+            RestApiId: !Ref IngestApi
+            Path: /fitbit/authorize
             Method: GET
             Auth:
               Authorizer: NONE
