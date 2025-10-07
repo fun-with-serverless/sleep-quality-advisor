@@ -12,14 +12,6 @@ dependencies = [
   "pydantic",
 ]
 
-[project.optional-dependencies]
-dev = [
-  "ruff",
-  "mypy",
-  "mypy-boto3-dynamodb",
-  "mypy-boto3-secretsmanager",
-]
-
 [tool.ruff]
 line-length = 120
 target-version = "py312"
@@ -47,8 +39,12 @@ plugins = []
 [dependency-groups]
 dev = [
     "moto>=5.1.14",
+    "mypy>=1.18.2",
+    "mypy-boto3-dynamodb>=1.40.20",
+    "mypy-boto3-secretsmanager>=1.40.0",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
+    "ruff>=0.13.2",
     "taskipy>=1.14.1",
 ]
 
@@ -62,3 +58,4 @@ check-fix = "task lint-fix && task format-fix && task typecheck && task test"
 check = "task lint && task format && task typecheck && task test"
 test = "PYTHONPATH=src pytest -q"
 test-cov = "PYTHONPATH=src pytest -q --cov=src --cov-report=term-missing"
+build = "uv export --frozen --no-dev --no-editable -o src/requirements.txt && sam build"
