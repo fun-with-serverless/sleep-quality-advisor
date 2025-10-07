@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 from typing import Any
 
 from aws_lambda_powertools import Logger
-
 from aws_lambda_powertools.utilities.data_classes import EventBridgeEvent, event_source
+
 from common.ddb import get_dynamodb, put_daily_summary, put_sleep_stage_segment
 from common.models import DailySummaryModel, SleepStageSegmentModel
 

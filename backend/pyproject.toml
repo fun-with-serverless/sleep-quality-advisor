@@ -46,11 +46,19 @@ plugins = []
 
 [dependency-groups]
 dev = [
+    "moto>=5.1.14",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
     "taskipy>=1.14.1",
 ]
 
 [tool.taskipy.tasks]
 lint = "ruff check ."
 lint-fix = "ruff check . --fix"
-format = "ruff format ."
+format = "ruff format --check ."
+format-fix = "ruff format ."
 typecheck = "mypy --config-file mypy.ini src"
+check-fix = "task lint-fix && task format-fix && task typecheck"
+check = "task lint && task format && task typecheck"
+test = "pytest -q"
+test-cov = "pytest -q --cov=src --cov-report=term-missing"

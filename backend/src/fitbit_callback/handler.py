@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import base64
 import json
 import os
@@ -10,7 +8,6 @@ from typing import Any
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities import parameters
 
-
 logger = Logger()
 
 ENV_REFRESH_SECRET_NAME = "FITBIT_REFRESH_SECRET_NAME"
@@ -20,7 +17,7 @@ ENV_CODE_VERIFIER_SECRET_NAME = "FITBIT_CODE_VERIFIER_SECRET_NAME"
 
 
 def _basic_auth_header(client_id: str, client_secret: str) -> str:
-    token = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
+    token = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode("ascii")
     return f"Basic {token}"
 
 

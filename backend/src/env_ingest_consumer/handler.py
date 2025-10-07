@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any
 
 from aws_lambda_powertools import Logger
