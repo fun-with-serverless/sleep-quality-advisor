@@ -6,6 +6,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
+from aws_lambda_powertools.utilities.batch.types import PartialItemFailureResponse
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from botocore.exceptions import ClientError
 
@@ -36,10 +37,10 @@ def record_handler(record: SQSRecord) -> None:
 
 
 @logger.inject_lambda_context
-def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
+def lambda_handler(event: dict[str, Any], context: Any) -> PartialItemFailureResponse:
     return process_partial_response(
         event=event,
         record_handler=record_handler,
         processor=processor,
-        context=context,
+        context=context,  # type: ignore[arg-type]
     )

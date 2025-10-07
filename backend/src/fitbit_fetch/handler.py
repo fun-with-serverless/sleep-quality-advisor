@@ -9,6 +9,7 @@ from common.models import DailySummaryModel, SleepStageSegmentModel
 logger = Logger()
 ddb = get_dynamodb()
 
+
 @event_source(data_class=EventBridgeEvent)
 @logger.inject_lambda_context
 def lambda_handler(event: EventBridgeEvent, context: object) -> dict[str, Any]:

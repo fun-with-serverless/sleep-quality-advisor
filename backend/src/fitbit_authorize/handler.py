@@ -64,5 +64,3 @@ def lambda_handler(event: dict[str, Any], context: object) -> dict[str, Any]:
         "headers": {"Location": authorize_url},
         "body": "",
     }
-
-

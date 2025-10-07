@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 import os
 from typing import Any
@@ -7,11 +5,13 @@ from unittest.mock import Mock, patch
 
 import boto3
 
+from .utils import FakeLambdaContext
+
 
 def _invoke(event: dict[str, Any]) -> dict[str, Any]:
     from src.fitbit_callback.handler import lambda_handler
 
-    return lambda_handler(event, {})
+    return lambda_handler(event, FakeLambdaContext())
 
 
 def test_happy_path_persists_refresh_token(aws_moto: None) -> None:  # type: ignore[unused-ignore]
@@ -26,7 +26,7 @@ def test_happy_path_persists_refresh_token(aws_moto: None) -> None:  # type: ign
     )
     # Provide code_verifier in secrets; client secret is provided by conftest
     secrets.put_secret_value(SecretId=os.environ["FITBIT_CODE_VERIFIER_SECRET_NAME"], SecretString="VERIFIER")
-    
+
     # Mock network call
     token_payload = {"refresh_token": "REFRESH"}
     mock_resp = Mock()
@@ -62,5 +62,3 @@ def test_token_exchange_failure_returns_502(aws_moto: None) -> None:  # type: ig
     assert res["statusCode"] == 502
     body = json.loads(res["body"])
     assert body["error"] == "token_exchange_failed"
-
-

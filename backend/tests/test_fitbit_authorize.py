@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 import os
 from urllib.parse import parse_qs, urlparse
 
 import boto3
 
 from src.fitbit_authorize.handler import lambda_handler
+
+from .utils import FakeLambdaContext
 
 
 def test_builds_redirect_and_persists_code_verifier(aws_moto: None) -> None:  # type: ignore[unused-ignore]
@@ -20,8 +20,7 @@ def test_builds_redirect_and_persists_code_verifier(aws_moto: None) -> None:  # 
         Overwrite=True,
     )
 
-
-    res = lambda_handler({}, {})
+    res = lambda_handler({}, FakeLambdaContext())
     assert res["statusCode"] == 302
     location = res["headers"]["Location"]
 
@@ -42,5 +41,3 @@ def test_builds_redirect_and_persists_code_verifier(aws_moto: None) -> None:  # 
     val = secrets.get_secret_value(SecretId=secret_name)["SecretString"]
     assert isinstance(val, str)
     assert len(val) >= 43
-
-

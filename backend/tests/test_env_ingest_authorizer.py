@@ -1,16 +1,15 @@
-from __future__ import annotations
-
 import os
 from typing import Any
 
 import boto3
 
+from .utils import FakeLambdaContext
+
 
 def _invoke(event: dict[str, Any]) -> dict[str, Any]:
     from src.env_ingest_authorizer.handler import lambda_handler  # import after env/moto ready
 
-    # Powertools event source wrapper expects plain dict
-    return lambda_handler(event, {})
+    return lambda_handler(event, FakeLambdaContext())
 
 
 def test_missing_header_denied(aws_moto: None) -> None:  # type: ignore[unused-ignore]
@@ -42,5 +41,3 @@ def test_correct_secret_allowed(aws_moto: None) -> None:  # type: ignore[unused-
     res = _invoke(event)
     stmt = res["policyDocument"]["Statement"][0]
     assert stmt["Effect"] == "Allow"
-
-

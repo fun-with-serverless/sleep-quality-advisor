@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from typing import Any
 
@@ -7,8 +5,11 @@ import boto3
 import pytest
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from botocore.exceptions import ClientError
+from pydantic import ValidationError
 
 from src.env_ingest_consumer.handler import record_handler
+
+from .utils import FakeLambdaContext
 
 
 def test_record_handler_happy_path(aws_moto: None) -> None:  # type: ignore[unused-ignore]
@@ -19,8 +20,6 @@ def test_record_handler_happy_path(aws_moto: None) -> None:  # type: ignore[unus
     payload = {
         "day": "2025-01-01",
         "ts_min": 1,
-        "temp_c": 21.5,
-        "humidity_pct": 40.0,
     }
     record = SQSRecord(
         {
@@ -45,8 +44,6 @@ def test_record_handler_happy_path(aws_moto: None) -> None:  # type: ignore[unus
 
 
 def test_record_handler_duplicate_treated_as_success(aws_moto: None) -> None:  # type: ignore[unused-ignore]
-
-
     # Seed an existing item to trigger ConditionalCheckFailedException
     ddb = boto3.resource("dynamodb")
     table = ddb.Table("env_readings")
@@ -72,12 +69,12 @@ def test_record_handler_duplicate_treated_as_success(aws_moto: None) -> None:  #
 
 
 def test_record_handler_invalid_json_raises(aws_moto: None) -> None:  # type: ignore[unused-ignore]
-
+    # Provide syntactically valid JSON that fails pydantic validation (missing required keys)
     record = SQSRecord(
         {
             "messageId": "1",
             "receiptHandle": "r",
-            "body": "{not-json}",
+            "body": json.dumps({"temp_c": 20.0}),
             "attributes": {},
             "messageAttributes": {},
             "md5OfBody": "x",
@@ -87,7 +84,7 @@ def test_record_handler_invalid_json_raises(aws_moto: None) -> None:  # type: ig
         }
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         record_handler(record)
 
 
@@ -136,8 +133,7 @@ def test_lambda_handler_single_record_success(aws_moto: None) -> None:  # type: 
             }
         ]
     }
-    res = lambda_handler(event, {})
+
+    res = lambda_handler(event, FakeLambdaContext())
     assert "batchItemFailures" in res
     assert res["batchItemFailures"] == []
-
-

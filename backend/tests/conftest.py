@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import contextlib
 import os
 from collections.abc import Iterator
 
@@ -74,17 +73,11 @@ def aws_moto() -> Iterator[None]:
             os.environ["FITBIT_REFRESH_SECRET_NAME"],
             os.environ["INGEST_SHARED_SECRET_NAME"],
         ]:
-            try:
-                secrets.create_secret(Name=name, SecretString="")
-            except secrets.exceptions.ResourceExistsException:  # type: ignore[attr-defined]
-                pass
+            with contextlib.suppress(secrets.exceptions.ResourceExistsException):  # type: ignore[attr-defined]
+                secrets.create_secret(Name=name, SecretString="x")
 
         # Client secret must be non-empty for happy path tests
-        try:
+        with contextlib.suppress(secrets.exceptions.ResourceExistsException):  # type: ignore[attr-defined]
             secrets.create_secret(Name=os.environ["FITBIT_CLIENT_SECRET_NAME"], SecretString="SECRET")
-        except secrets.exceptions.ResourceExistsException:  # type: ignore[attr-defined]
-            pass
 
         yield
-
-
