@@ -7,5 +7,7 @@ stack_name = "sleep-quality-advisor-backend"
 region = "us-east-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM"
-s3_prefix = "sleep-quality-advisor/sam"
+s3_prefix = "sleep-quality-advisor-backend"
 image_repositories = []
+resolve_s3 = true
+parameter_overrides = "IngestSharedSecretName=\"ingest/shared/secret\" FitbitRefreshSecretName=\"fitbit/refresh/token\" FitbitClientSecretName=\"fitbit/client/secret\" FitbitClientIdParamName=\"/fitbit/client/id\" FitbitCodeVerifierSecretName=\"fitbit/code/verifier\" ScheduleExpression=\"cron(10 7 * * ? *)\""

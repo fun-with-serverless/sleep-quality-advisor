@@ -15,7 +15,7 @@ Parameters:
     Default: fitbit/client/secret
   FitbitClientIdParamName:
     Type: String
-    Default: fitbit/client/id
+    Default: /fitbit/client/id
   FitbitCodeVerifierSecretName:
     Type: String
     Default: fitbit/code/verifier
@@ -137,7 +137,8 @@ Resources:
             Queue: !GetAtt EnvIngestQueue.Arn
             BatchSize: 10
             Enabled: true
-            FunctionResponseTypes: ReportBatchItemFailures
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
 
   # Lambda: Authorizer for API Gateway to validate shared secret header
   EnvIngestAuthorizer:
@@ -171,7 +172,7 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:PutSecretValue
-              Resource: !Ref FitbitRefreshSecretName
+              Resource: !Ref FitbitRefreshSecret
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
@@ -210,7 +211,7 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:PutSecretValue
-              Resource: !Ref FitbitCodeVerifierSecretName
+              Resource: !Ref FitbitCodeVerifierSecret
       Events:
         HttpAuthorize:
           Type: Api
@@ -268,19 +269,35 @@ Resources:
               Headers:
                 - X-Secret
               ValidationExpression: ".+"
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          title: Ingest API
+          version: "1.0"
+        basePath: "/prod"
+        schemes:
+          - https
+        paths:
+          /ingest:
+            post:
+              security:
+                - IngestTokenAuth: []
+              responses:
+                "200":
+                  description: OK
+              x-amazon-apigateway-integration:
+                type: aws
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewaySqsRole.Arn
+                uri: !Sub arn:aws:apigateway:${AWS::Region}:sqs:path/${AWS::AccountId}/${EnvIngestQueue.QueueName}
+                passthroughBehavior: NEVER
+                requestTemplates:
+                  application/json: |
+                    Action=SendMessage&MessageBody=$util.urlEncode($util.escapeJavaScript($input.body))
+                responses:
+                  default:
+                    statusCode: "200"
 
-  
-
-  IngestResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref IngestApi
-      ParentId: !GetAtt IngestApi.RootResourceId
-      PathPart: ingest
-
-  
-
-  
 
   ApiGatewaySqsRole:
     Type: AWS::IAM::Role
@@ -300,30 +317,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sqs:SendMessage
-                Resource: !GetAtt EnvIngestQueue.Arn
-
-  IngestPostMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref IngestApi
-      ResourceId: !Ref IngestResource
-      HttpMethod: POST
-      AuthorizationType: CUSTOM
-      Integration:
-        Type: AWS
-        IntegrationHttpMethod: POST
-        Credentials: !GetAtt ApiGatewaySqsRole.Arn
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:sqs:path/${AWS::AccountId}/${EnvIngestQueue.QueueName}
-        RequestTemplates:
-          application/json: |
-            Action=SendMessage&MessageBody=$util.urlEncode($util.escapeJavaScript($input.body))
-        PassthroughBehavior: NEVER
-        IntegrationResponses:
-          - StatusCode: 200
-      MethodResponses:
-        - StatusCode: 200
-
-  
+                Resource: !GetAtt EnvIngestQueue.Arn  
 
 Outputs:
   ApiUrl:
