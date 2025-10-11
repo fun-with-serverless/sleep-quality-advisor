@@ -10,6 +10,7 @@ dependencies = [
   "boto3",
   "typing-extensions",
   "pydantic",
+  "requests",
 ]
 
 [tool.ruff]
@@ -59,3 +60,4 @@ check = "task lint && task format && task typecheck && task test && sam validate
 test = "PYTHONPATH=src pytest -q"
 test-cov = "PYTHONPATH=src pytest -q --cov=src --cov-report=term-missing"
 build = "uv export --frozen --no-dev --no-editable -o src/requirements.txt && sam build"
+deploy = "sam deploy"

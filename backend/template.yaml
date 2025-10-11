@@ -74,6 +74,18 @@ Resources:
       SSESpecification:
         SSEEnabled: true
 
+  # Ingest shared secret (used by API authorizer)
+  IngestSharedSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Ref IngestSharedSecretName
+      Description: Shared secret for ingest authorizer
+      GenerateSecretString:
+        PasswordLength: 32
+        ExcludePunctuation: true
+        ExcludeUppercase: true
+      
+
   # Bootstrap: Fitbit related secrets and parameters with default values
   FitbitRefreshSecret:
     Type: AWS::SecretsManager::Secret
@@ -152,7 +164,7 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: '*'
+              Resource: !Ref IngestSharedSecret
 
   # Fitbit callback Lambda
   FitbitCallback:
@@ -185,11 +197,9 @@ Resources:
         HttpCallback:
           Type: Api
           Properties:
-            RestApiId: !Ref IngestApi
             Path: /fitbit/callback
             Method: GET
-            Auth:
-              Authorizer: NONE
+            
 
   # Fitbit authorize Lambda (redirects to Fitbit OAuth with PKCE)
   FitbitAuthorize:
@@ -216,11 +226,12 @@ Resources:
         HttpAuthorize:
           Type: Api
           Properties:
-            RestApiId: !Ref IngestApi
             Path: /fitbit/authorize
             Method: GET
-            Auth:
-              Authorizer: NONE
+            
+
+  
+      
 
   # Fitbit fetch Lambda (scheduled)
   FitbitFetch:
@@ -233,6 +244,7 @@ Resources:
         Variables:
           FITBIT_REFRESH_SECRET_NAME: !Ref FitbitRefreshSecretName
           FITBIT_CLIENT_SECRET_NAME: !Ref FitbitClientSecretName
+          FITBIT_CLIENT_ID_PARAM_NAME: !Ref FitbitClientIdParamName
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -244,6 +256,10 @@ Resources:
               Action:
                 - dynamodb:PutItem
               Resource: !GetAtt SleepSessionsTable.Arn
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: '*'
       Events:
         DailySchedule:
           Type: Schedule
@@ -298,7 +314,6 @@ Resources:
                   default:
                     statusCode: "200"
 
-
   ApiGatewaySqsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -323,3 +338,10 @@ Outputs:
   ApiUrl:
     Description: Base URL for the API stage
     Value: !Sub https://${IngestApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+  FitbitCallbackUrl:
+    Description: URL for the Fitbit callback
+    Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/fitbit/callback
+  FitbitAuthorizeUrl:
+    Description: URL for the Fitbit authorize redirect
+    Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/fitbit/authorize
+  

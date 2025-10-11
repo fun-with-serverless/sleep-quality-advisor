@@ -24,6 +24,48 @@ Serverless backend using AWS SAM: API Gateway (REST) → SQS → Lambda → Dyna
   uv sync --all-extras
   ```
 
+## Quality checks
+
+- Quick checks:
+  ```bash
+  uv run task check
+  ```
+  Runs lint, format (check), mypy, tests, and `sam validate`.
+
+- Auto-fix and re-verify:
+  ```bash
+  uv run task check-fix
+  ```
+  Applies lint/format fixes, then runs mypy, tests, and `sam validate`.
+
+## Build
+
+Generate a runtime-only `src/requirements.txt` from the locked env and run SAM build:
+
+```bash
+uv run task build
+```
+
+## Deploy
+
+Deploy the stack (region/profile are picked from `samconfig.toml` unless overridden):
+
+```bash
+uv run task deploy
+```
+
+## Post-deployment
+
+Fill in the following secrets/parameters in AWS:
+
+- SSM Parameter (String): `/fitbit/client/id` — Fitbit client ID
+- Secrets Manager: `fitbit/client/secret` — Fitbit client secret
+- Secrets Manager: `ingest/shared/secret` — shared header secret for `X-Secret`
+
+Notes:
+- If your org enforces encryption for `/fitbit/*`, store as SecureString and provide a KMS key.
+- The stack bootstraps placeholder secrets/parameter, but you must set real values after deploy.
+
 ## Structure
 - `template.yaml`: SAM resources
 - `src/`: Lambda handlers and shared code
