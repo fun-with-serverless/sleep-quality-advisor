@@ -74,6 +74,6 @@ def lambda_handler(event: EventBridgeEvent, context: object) -> dict[str, Any]:
                 written_segments += 1
 
         return {"ok": True, "segments": written_segments}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("fitbit_fetch_failed")
-        return {"ok": False, "error": str(exc)}
+        raise exc

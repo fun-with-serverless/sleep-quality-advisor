@@ -260,6 +260,10 @@ Resources:
               Action:
                 - ssm:GetParameter
               Resource: '*'
+            - Effect: Allow
+              Action:
+                - secretsmanager:PutSecretValue
+              Resource: !Ref FitbitRefreshSecret
       Events:
         DailySchedule:
           Type: Schedule

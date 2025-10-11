@@ -4,6 +4,7 @@ from typing import Any
 from unittest.mock import patch
 
 import boto3
+import pytest
 
 from .utils import FakeLambdaContext
 
@@ -122,8 +123,5 @@ def test_error_from_token_refresh_is_reported(aws_moto: None) -> None:  # type: 
         def json(self) -> dict[str, Any]:  # pragma: no cover - not used
             return {}
 
-    with patch("src.common.fitbit_client.requests.post", return_value=_BadResp()):
-        res = _invoke({})
-
-    assert res["ok"] is False
-    assert "failed" in res["error"]
+    with patch("src.common.fitbit_client.requests.post", return_value=_BadResp()), pytest.raises(RuntimeError):
+        _invoke({})
