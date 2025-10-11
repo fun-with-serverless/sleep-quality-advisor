@@ -1,9 +1,7 @@
 import base64
-import contextlib
 from typing import Any, cast
 
 import requests  # type: ignore[import-untyped]
-
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities import parameters
 

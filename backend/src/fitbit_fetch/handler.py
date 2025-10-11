@@ -1,7 +1,6 @@
+import os
 from datetime import UTC, datetime
 from typing import Any
-import os
-
 
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities import parameters
@@ -24,7 +23,6 @@ LEVEL_TO_STAGE: dict[str, str] = {"wake": "Awake", "light": "Light", "deep": "De
 @event_source(data_class=EventBridgeEvent)
 @logger.inject_lambda_context
 def lambda_handler(event: EventBridgeEvent, context: object) -> dict[str, Any]:
-   
     # Initialize client
     client = FitbitClient(client_id_param_name=client_id_param_name, client_secret_name=client_secret_name)
 
