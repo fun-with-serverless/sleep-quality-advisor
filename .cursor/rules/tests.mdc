@@ -1,4 +1,8 @@
 ---
 alwaysApply: true
 ---
-After each change run `uv run task check-fix` inside the `backend` folder and fix any erros found, before fixing the errors, share the fix plan.
+After each change in `backend` folder run `uv run task check-fix` inside the `backend` folder and fix any erros found, before fixing the errors, share the fix plan.
+
+After each change in `rpi` folder run `uv run task check-fix` inside the `rpi` folder and fix any erros found, before fixing the errors, share the fix plan.
+
+Don't use from __future__ import annotations
