@@ -57,7 +57,7 @@ format-fix = "ruff format ."
 typecheck = "PYTHONPATH=src mypy --config-file mypy.ini src || PYTHONPATH=src mypy src"
 check-fix = "task lint-fix && task format-fix && task typecheck && task test"
 check = "task lint && task format && task typecheck && task test"
-test = "PYTHONPATH=src pytest -q"
-test-cov = "PYTHONPATH=src pytest -q --cov=src --cov-report=term-missing"
+test = "PYTHONPATH=. pytest -q"
+test-cov = "PYTHONPATH=. pytest -q --cov=src --cov-report=term-missing"
 
 

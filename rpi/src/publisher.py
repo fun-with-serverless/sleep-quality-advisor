@@ -5,8 +5,8 @@ from collections.abc import Callable
 from requests import Response, post
 from tenacity import Retrying, stop_after_attempt, wait_exponential_jitter
 
-from models import EnvReadingModel
-from timeutil import day_from_epoch_minutes
+from .models import EnvReadingModel
+from .timeutil import day_from_epoch_minutes
 
 # Fixed warm-up duration for BME680 gas sensor (seconds)
 WARMUP_DURATION_SECS_BME680 = 300

@@ -1,9 +1,9 @@
 import logging
 
-from bme680_sensor.helpers import make_bme680_read_sample
-from bme680_sensor.reader import BME680Reader
-from config import load_settings
-from publisher import run_publisher
+from .bme680_sensor.helpers import make_bme680_read_sample
+from .bme680_sensor.reader import BME680Reader
+from .config import load_settings
+from .publisher import run_publisher
 
 
 def _setup_logging(level: str) -> None:

@@ -2,9 +2,9 @@ from typing import Any
 
 import pytest
 
-from config import Settings
-from publisher import run_publisher
-from timeutil import day_from_epoch_minutes
+from src.config import Settings
+from src.publisher import run_publisher
+from src.timeutil import day_from_epoch_minutes
 
 
 def test_payload_matches_env_reading_model(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -24,7 +24,7 @@ def test_payload_matches_env_reading_model(monkeypatch: pytest.MonkeyPatch) -> N
         captured = payload
         raise SystemExit  # stop the loop after first send
 
-    monkeypatch.setattr("publisher._post_json", fake_post)
+    monkeypatch.setattr("src.publisher._post_json", fake_post)
     # Disable warm-up in this test and avoid real sleeping
     # No warm-up via function param
     monkeypatch.setattr("time.sleep", lambda *_args, **_kwargs: None)
