@@ -11,7 +11,7 @@ from aws_lambda_powertools.utilities.parameters import get_secret
 
 logger = Logger()
 
-SECRET_HEADER = "X-Secret"
+SECRET_HEADER = "Authorization"
 INGEST_SHARED_SECRET_NAME = "INGEST_SHARED_SECRET_NAME"
 
 
