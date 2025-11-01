@@ -59,5 +59,6 @@ check-fix = "task lint-fix && task format-fix && task typecheck && task test"
 check = "task lint && task format && task typecheck && task test"
 test = "PYTHONPATH=. pytest -q"
 test-cov = "PYTHONPATH=. pytest -q --cov=src --cov-report=term-missing"
+sensor-check = "PYTHONPATH=src python -m bme680_sensor.check_connection"
 
 
