@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 
 from .reader import BME680Reader
 
@@ -16,15 +17,37 @@ def _parse_int(value: str | None, default: int) -> int:
 def main() -> None:
     bus = _parse_int(os.environ.get("I2C_BUS"), 1)
     address = _parse_int(os.environ.get("I2C_ADDRESS"), 0x76)
+    timeout_secs = _parse_int(os.environ.get("CHECK_TIMEOUT_SECS"), 3)
+    poll_ms = _parse_int(os.environ.get("CHECK_POLL_MS"), 200)
+    wait_gas_secs = _parse_int(os.environ.get("WAIT_FOR_GAS_STABLE_SECS"), 0)
 
     try:
         reader = BME680Reader(bus, address)
-        sample = reader.read()
     except Exception as exc:  # noqa: BLE001
         print(f"BME680 connection failed (bus={bus}, addr=0x{address:02X}): {exc}", file=sys.stderr)
         sys.exit(1)
 
     print(f"BME680 connected (bus={bus}, addr=0x{address:02X}).")
+
+    # Poll for temperature/humidity/pressure readiness
+    start = time.monotonic()
+    sample = reader.read()
+    while (
+        time.monotonic() - start < timeout_secs
+        and sample.temperature_c is None
+        and sample.humidity_pct is None
+        and sample.pressure_hpa is None
+    ):
+        time.sleep(poll_ms / 1000.0)
+        sample = reader.read()
+
+    # Optionally wait for gas heater stability
+    if wait_gas_secs > 0 and not sample.gas_heat_stable:
+        gas_deadline = time.monotonic() + wait_gas_secs
+        while time.monotonic() < gas_deadline and not sample.gas_heat_stable:
+            time.sleep(poll_ms / 1000.0)
+            sample = reader.read()
+
     print(
         "Sample: "
         f"temperature_c={sample.temperature_c} "
@@ -33,6 +56,19 @@ def main() -> None:
         f"gas_ohms={sample.gas_ohms} "
         f"gas_heat_stable={sample.gas_heat_stable}"
     )
+
+    if sample.temperature_c is None and sample.humidity_pct is None and sample.pressure_hpa is None:
+        print(
+            "Note: Temperature/humidity/pressure not ready within "
+            f"{timeout_secs}s. Increase CHECK_TIMEOUT_SECS or verify wiring/address.",
+            file=sys.stderr,
+        )
+    if wait_gas_secs > 0 and not sample.gas_heat_stable:
+        print(
+            f"Note: Gas heater did not reach stable state within {wait_gas_secs}s. This is normal during warm-up.",
+            file=sys.stderr,
+        )
+
     sys.exit(0)
 
 
