@@ -76,6 +76,7 @@ def run_publisher(
 
         for attempt in Retrying(stop=stop_after_attempt(3), wait=wait_exponential_jitter(initial=0.2, max=2.0)):
             with attempt:
+                logging.info("Sending sample: %s", payload)
                 code = _post_json(endpoint_url, post_secret, user_agent, payload)
                 if not (200 <= code < 300):
                     raise RuntimeError(f"HTTP status {code}")
