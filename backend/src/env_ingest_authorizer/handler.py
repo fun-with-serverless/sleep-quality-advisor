@@ -38,19 +38,18 @@ def _policy(principal_id: str, effect: str, method_arn: str) -> APIGatewayAuthor
 @event_source(data_class=APIGatewayAuthorizerTokenEvent)
 def lambda_handler(event: APIGatewayAuthorizerTokenEvent, context: Any) -> APIGatewayAuthorizerResponse:
     method_arn = str(event.get("methodArn", "*"))
-    headers = event.get("headers") or {}
-    provided = headers.get(SECRET_HEADER) or headers.get(SECRET_HEADER.lower())
+    secret = event.authorization_token
 
-    if not provided:
-        logger.warning("Missing secret header")
+    if not secret:
+        logger.warning("Missing authorization token")
         return _policy("anonymous", "Deny", method_arn)
 
     secret_name = os.environ.get(INGEST_SHARED_SECRET_NAME, "")
     expected = get_secret(secret_name)
 
-    if provided == expected:
-        logger.info("Valid secret header")
+    if secret == expected:
+        logger.info("Valid authorization token")
         return _policy("device", "Allow", method_arn)
 
-    logger.warning("Invalid secret header")
+    logger.warning("Invalid authorization token")
     return _policy("anonymous", "Deny", method_arn)
