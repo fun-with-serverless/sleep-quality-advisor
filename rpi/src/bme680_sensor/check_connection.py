@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import time
@@ -15,11 +16,14 @@ def _parse_int(value: str | None, default: int) -> int:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     bus = _parse_int(os.environ.get("I2C_BUS"), 1)
     address = _parse_int(os.environ.get("I2C_ADDRESS"), 0x76)
     timeout_secs = _parse_int(os.environ.get("CHECK_TIMEOUT_SECS"), 3)
     poll_ms = _parse_int(os.environ.get("CHECK_POLL_MS"), 200)
     wait_gas_secs = _parse_int(os.environ.get("WAIT_FOR_GAS_STABLE_SECS"), 0)
+
+    logging.info("Checking BME680 (bus=%s, addr=0x%02X)", bus, address)
 
     try:
         reader = BME680Reader(bus, address)
@@ -27,7 +31,7 @@ def main() -> None:
         print(f"BME680 connection failed (bus={bus}, addr=0x{address:02X}): {exc}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"BME680 connected (bus={bus}, addr=0x{address:02X}).")
+    logging.info("Connected. Polling up to %ss for T/H/P...", timeout_secs)
 
     # Poll for temperature/humidity/pressure readiness
     start = time.monotonic()
@@ -43,10 +47,19 @@ def main() -> None:
 
     # Optionally wait for gas heater stability
     if wait_gas_secs > 0 and not sample.gas_heat_stable:
+        logging.info("Waiting up to %ss for gas heater to stabilize...", wait_gas_secs)
         gas_deadline = time.monotonic() + wait_gas_secs
         while time.monotonic() < gas_deadline and not sample.gas_heat_stable:
             time.sleep(poll_ms / 1000.0)
             sample = reader.read()
+
+    if not (sample.temperature_c is None and sample.humidity_pct is None and sample.pressure_hpa is None):
+        logging.info(
+            "T/H/P ready: temp=%sC hum=%s%% pres=%shPa",
+            sample.temperature_c,
+            sample.humidity_pct,
+            sample.pressure_hpa,
+        )
 
     print(
         "Sample: "

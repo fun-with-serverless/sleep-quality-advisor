@@ -1,3 +1,4 @@
+import logging
 import socket
 import time
 from collections.abc import Callable
@@ -39,11 +40,20 @@ def run_publisher(
     read_sample: Callable[[], dict[str, float | int | bool | None]],
 ) -> None:
     tick = max(1, int(tick_seconds))
+    logging.info(
+        "Publisher starting: tick=%ss, warmup=%ss, endpoint=%s",
+        tick,
+        warmup_seconds,
+        endpoint_url,
+    )
     if warmup_seconds > 0:
+        logging.info("Warming up gas sensor for %ss...", int(warmup_seconds))
         time.sleep(int(warmup_seconds))
+        logging.info("Warmup complete; starting sampling every %ss", tick)
 
     device_id = _get_device_id()
 
+    first_sent = False
     while True:
         sample = read_sample()
 
@@ -69,5 +79,13 @@ def run_publisher(
                 code = _post_json(endpoint_url, post_secret, user_agent, payload)
                 if not (200 <= code < 300):
                     raise RuntimeError(f"HTTP status {code}")
+        if not first_sent:
+            logging.info(
+                "First sample sent: temp=%sC hum=%s%% pres=%shPa",
+                model.temp_c,
+                model.humidity_pct,
+                model.pressure_hpa,
+            )
+            first_sent = True
 
         time.sleep(tick)

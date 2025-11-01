@@ -60,5 +60,6 @@ check = "task lint && task format && task typecheck && task test"
 test = "PYTHONPATH=. pytest -q"
 test-cov = "PYTHONPATH=. pytest -q --cov=src --cov-report=term-missing"
 sensor-check = "PYTHONPATH=src python -m bme680_sensor.check_connection"
+rpi-run = "python -m src.main"
 
 
