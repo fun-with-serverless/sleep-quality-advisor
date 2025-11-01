@@ -285,10 +285,6 @@ Resources:
           IngestTokenAuth:
             FunctionPayloadType: TOKEN
             FunctionArn: !GetAtt EnvIngestAuthorizer.Arn
-            Identity:
-              Headers:
-                - X-Secret
-              ValidationExpression: ".+"
       DefinitionBody:
         swagger: "2.0"
         info:

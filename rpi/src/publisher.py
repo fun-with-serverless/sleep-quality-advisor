@@ -24,7 +24,7 @@ def _get_device_id() -> str:
 def _post_json(url: str, secret: str, user_agent: str, payload: dict[str, object]) -> int:
     headers = {
         "Content-Type": "application/json",
-        "X-Secret": secret,
+        "Authorization": secret,
         "User-Agent": user_agent,
     }
     resp: Response = post(url, json=payload, headers=headers, timeout=5)
