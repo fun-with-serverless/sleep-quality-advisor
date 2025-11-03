@@ -20,7 +20,7 @@ class Settings(BaseModel):
     post_secret: str = Field(validation_alias="POST_SECRET")
     user_agent: str = Field(default="sleep-quality-sensors/1.0", validation_alias="USER_AGENT")
 
-    sample_interval_secs: int = Field(default=10, validation_alias="SAMPLE_INTERVAL_SECS")
+    sample_interval_secs: int = Field(default=60, validation_alias="SAMPLE_INTERVAL_SECS")
     warmup_duration_secs: int = Field(default=300, validation_alias="WARMUP_DURATION_SECS")
 
     i2c_bus: int = Field(default=1, validation_alias="I2C_BUS")

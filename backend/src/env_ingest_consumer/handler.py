@@ -36,6 +36,12 @@ def record_handler(record: SQSRecord) -> None:
 
         model = EnvReadingModel.model_validate_json(normalized_body)
         put_env_reading(ddb, model.model_dump(exclude_none=True))
+        logger.info(
+            "Ingested env reading: day=%s ts_min=%s deviceId=%s",
+            model.day,
+            model.ts_min,
+            model.deviceId,
+        )
     except ClientError as ce:
         code = ce.response.get("Error", {}).get("Code", "")
         if code == "ConditionalCheckFailedException":
