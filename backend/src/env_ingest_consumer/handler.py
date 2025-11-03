@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from aws_lambda_powertools import Logger
@@ -22,7 +23,18 @@ processor = BatchProcessor(event_type=EventType.SQS)
 def record_handler(record: SQSRecord) -> None:
     body = record.body or "{}"
     try:
-        model = EnvReadingModel.model_validate_json(body)
+        # API Gateway -> SQS integration uses escapeJavaScript in the request template,
+        # which results in bodies like {\"day\":\"...\"}. Attempt to reverse that
+        # escaping before validating. Fall back to original body if unescape fails.
+        normalized_body = body
+        if "\\" in body:
+            try:
+                normalized_body = json.loads(f'"{body}"')
+            except Exception:
+                # If unescaping fails, proceed with the raw body so validation can raise
+                normalized_body = body
+
+        model = EnvReadingModel.model_validate_json(normalized_body)
         put_env_reading(ddb, model.model_dump(exclude_none=True))
     except ClientError as ce:
         code = ce.response.get("Error", {}).get("Code", "")
