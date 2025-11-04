@@ -37,12 +37,12 @@ uv run python -m sqa_rpi.main
 ```
 
 ## Systemd Service
-Install the service (edit paths/user as needed):
+Install the service (edit paths/user as needed in the template):
 ```bash
-sudo cp systemd/sqa-bme680.service.template /etc/systemd/system/sqa-bme680.service
+sudo cp systemd/sqa.service.template /etc/systemd/system/sqa.service
 sudo systemctl daemon-reload
-sudo systemctl enable sqa-bme680.service
-sudo systemctl start sqa-bme680.service
+sudo systemctl enable sqa.service
+sudo systemctl start sqa.service
 ```
 
 ## Development

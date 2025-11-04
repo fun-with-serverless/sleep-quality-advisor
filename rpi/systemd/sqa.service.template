@@ -1,0 +1,19 @@
+[Unit]
+Description=Sleep Quality Sensors
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sqs-bme680.env
+WorkingDirectory=<path to /home/rp/code/sleep-quality-advisor/rpi>
+Environment=PYTHONPATH=<path to /home/rp/code/sleep-quality-advisor/rpi/src>
+ExecStart=<path to uv> run task rpi-run
+Restart=always
+RestartSec=5
+User=<change>
+
+[Install]
+WantedBy=multi-user.target
+
+
