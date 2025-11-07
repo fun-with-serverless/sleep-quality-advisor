@@ -4,9 +4,9 @@ import time
 from collections.abc import Callable
 
 from requests import Response, post
-from tenacity import Retrying, stop_after_attempt, wait_exponential_jitter
 
 from .models import EnvReadingModel
+from .offline_queue import OfflineQueue
 from .timeutil import day_from_epoch_minutes
 
 # Fixed warm-up duration for BME680 gas sensor (seconds)
@@ -38,6 +38,9 @@ def run_publisher(
     tick_seconds: int,
     warmup_seconds: int,
     read_sample: Callable[[], dict[str, float | int | bool | None]],
+    spool_db_path: str = "./spool.db",
+    spool_max_rows: int = 10_000,
+    spool_flush_batch: int = 100,
 ) -> None:
     tick = max(1, int(tick_seconds))
     logging.info(
@@ -52,6 +55,10 @@ def run_publisher(
         logging.info("Warmup complete; starting sampling every %ss", tick)
 
     device_id = _get_device_id()
+    queue = OfflineQueue(db_path=spool_db_path, max_rows=spool_max_rows)
+
+    def _send_once(payload: dict[str, object]) -> int:
+        return _post_json(endpoint_url, post_secret, user_agent, payload)
 
     first_sent = False
     while True:
@@ -74,12 +81,35 @@ def run_publisher(
 
         payload = model.model_dump(exclude_none=True)
 
-        for attempt in Retrying(stop=stop_after_attempt(3), wait=wait_exponential_jitter(initial=0.2, max=2.0)):
-            with attempt:
-                logging.info("Sending sample: %s", payload)
-                code = _post_json(endpoint_url, post_secret, user_agent, payload)
-                if not (200 <= code < 300):
-                    raise RuntimeError(f"HTTP status {code}")
+        # First, attempt to flush previously queued payloads
+        try:
+            flushed = queue.flush_once(max_batch=spool_flush_batch, send_func=_send_once)
+            if flushed > 0:
+                logging.info("Flushed %s queued samples", flushed)
+        except Exception as exc:
+            # Flushing failure is non-fatal; we will try again next tick
+            logging.debug("Flush attempt failed: %s", exc)
+
+        # Now send current payload; on failure, enqueue it for later
+        try:
+            logging.info("Sending sample: %s", payload)
+            code = _send_once(payload)
+            if not (200 <= code < 300):
+                raise RuntimeError(f"HTTP status {code}")
+        except SystemExit:
+            # Preserve test behavior that uses SystemExit to stop the loop
+            raise
+        except Exception as exc:
+            logging.warning("Send failed; enqueuing for retry: %s", exc)
+            try:
+                queue.enqueue(payload)
+            except Exception as qexc:
+                logging.error("Failed to enqueue payload for retry: %s", qexc)
+            else:
+                logging.info("Queued sample for later retry: ts_min=%s", ts_min)
+            # Skip first_sent logging on failure
+            time.sleep(tick)
+            continue
         if not first_sent:
             logging.info(
                 "First sample sent: temp=%sC hum=%s%% pres=%shPa",

@@ -25,6 +25,9 @@ def main() -> None:
         tick_seconds=settings.sample_interval_secs,
         warmup_seconds=settings.warmup_duration_secs,
         read_sample=make_bme680_read_sample(reader),
+        spool_db_path=settings.spool_db_path,
+        spool_max_rows=settings.spool_max_rows,
+        spool_flush_batch=settings.spool_flush_batch,
     )
 
 

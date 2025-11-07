@@ -27,6 +27,10 @@ class Settings(BaseModel):
     i2c_address: int = Field(default=0x76, validation_alias="I2C_ADDRESS")
 
     log_level: LogLevel = Field(default=LogLevel.INFO, validation_alias="LOG_LEVEL")
+    # Offline spool settings
+    spool_db_path: str = Field(default="./spool.db", validation_alias="SPOOL_DB_PATH")
+    spool_max_rows: int = Field(default=10_000, validation_alias="SPOOL_MAX_ROWS")
+    spool_flush_batch: int = Field(default=100, validation_alias="SPOOL_FLUSH_BATCH")
 
 
 ENV_KEYS: Final[tuple[str, ...]] = (
@@ -38,6 +42,9 @@ ENV_KEYS: Final[tuple[str, ...]] = (
     "I2C_BUS",
     "I2C_ADDRESS",
     "LOG_LEVEL",
+    "SPOOL_DB_PATH",
+    "SPOOL_MAX_ROWS",
+    "SPOOL_FLUSH_BATCH",
 )
 
 
