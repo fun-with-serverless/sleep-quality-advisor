@@ -1,0 +1,10 @@
+{
+  "folders": [
+    { "path": "backend", "name": "backend" },
+    { "path": "rpi", "name": "rpi" },
+    { "path": "streamlit", "name": "streamlit" }
+  ],
+  "settings": {}
+}
+
+
