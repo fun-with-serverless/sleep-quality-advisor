@@ -11,10 +11,12 @@ Environment=PYTHONPATH=<path to /home/rp/code/sleep-quality-advisor/rpi/src>
 # Ensure PWR LED is in manual OFF state before service starts (ignore errors if missing)
 ExecStartPre=/bin/sh -c 'echo none > /sys/class/leds/PWR/trigger 2>/dev/null || true'
 ExecStartPre=/bin/sh -c 'echo 0 > /sys/class/leds/PWR/brightness 2>/dev/null || true'
+ReadWritePaths=ReadWritePaths=/sys/class/leds/PWR <path-to-your-rpi-working-dir>
+ProtectSystem=strict
 ExecStart=<path to uv> run task rpi-run
 Restart=always
 RestartSec=5
-User=<change>
+User=root
 
 [Install]
 WantedBy=multi-user.target
