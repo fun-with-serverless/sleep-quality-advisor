@@ -31,6 +31,9 @@ class Settings(BaseModel):
     spool_db_path: str = Field(default="./spool.db", validation_alias="SPOOL_DB_PATH")
     spool_max_rows: int = Field(default=10_000, validation_alias="SPOOL_MAX_ROWS")
     spool_flush_batch: int = Field(default=100, validation_alias="SPOOL_FLUSH_BATCH")
+    # LED blink timings (ms)
+    led_blink_on_ms: int = Field(default=150, validation_alias="LED_BLINK_ON_MS")
+    led_blink_off_ms: int = Field(default=850, validation_alias="LED_BLINK_OFF_MS")
 
 
 ENV_KEYS: Final[tuple[str, ...]] = (
@@ -45,6 +48,8 @@ ENV_KEYS: Final[tuple[str, ...]] = (
     "SPOOL_DB_PATH",
     "SPOOL_MAX_ROWS",
     "SPOOL_FLUSH_BATCH",
+    "LED_BLINK_ON_MS",
+    "LED_BLINK_OFF_MS",
 )
 
 

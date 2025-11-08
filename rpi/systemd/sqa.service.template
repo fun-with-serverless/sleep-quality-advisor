@@ -8,6 +8,9 @@ Type=simple
 EnvironmentFile=/etc/sqs-bme680.env
 WorkingDirectory=<path to /home/rp/code/sleep-quality-advisor/rpi>
 Environment=PYTHONPATH=<path to /home/rp/code/sleep-quality-advisor/rpi/src>
+# Ensure PWR LED is in manual OFF state before service starts (ignore errors if missing)
+ExecStartPre=/bin/sh -c 'echo none > /sys/class/leds/PWR/trigger 2>/dev/null || true'
+ExecStartPre=/bin/sh -c 'echo 0 > /sys/class/leds/PWR/brightness 2>/dev/null || true'
 ExecStart=<path to uv> run task rpi-run
 Restart=always
 RestartSec=5

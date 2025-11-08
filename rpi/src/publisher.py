@@ -41,6 +41,10 @@ def run_publisher(
     spool_db_path: str = "./spool.db",
     spool_max_rows: int = 10_000,
     spool_flush_batch: int = 100,
+    on_send_success: Callable[[], None] | None = None,
+    on_send_failure: Callable[[Exception | str], None] | None = None,
+    on_flush_success: Callable[[int], None] | None = None,
+    on_flush_error: Callable[[Exception], None] | None = None,
 ) -> None:
     tick = max(1, int(tick_seconds))
     logging.info(
@@ -86,9 +90,20 @@ def run_publisher(
             flushed = queue.flush_once(max_batch=spool_flush_batch, send_func=_send_once)
             if flushed > 0:
                 logging.info("Flushed %s queued samples", flushed)
+            if on_flush_success is not None:
+                try:
+                    on_flush_success(flushed)
+                except Exception:
+                    # Callback errors must not affect the loop
+                    logging.debug("on_flush_success callback error", exc_info=True)
         except Exception as exc:
             # Flushing failure is non-fatal; we will try again next tick
             logging.debug("Flush attempt failed: %s", exc)
+            if on_flush_error is not None:
+                try:
+                    on_flush_error(exc)
+                except Exception:
+                    logging.debug("on_flush_error callback error", exc_info=True)
 
         # Now send current payload; on failure, enqueue it for later
         try:
@@ -101,6 +116,11 @@ def run_publisher(
             raise
         except Exception as exc:
             logging.warning("Send failed; enqueuing for retry: %s", exc)
+            if on_send_failure is not None:
+                try:
+                    on_send_failure(exc)
+                except Exception:
+                    logging.debug("on_send_failure callback error", exc_info=True)
             try:
                 queue.enqueue(payload)
             except Exception as qexc:
@@ -118,5 +138,10 @@ def run_publisher(
                 model.pressure_hpa,
             )
             first_sent = True
+        if on_send_success is not None:
+            try:
+                on_send_success()
+            except Exception:
+                logging.debug("on_send_success callback error", exc_info=True)
 
         time.sleep(tick)

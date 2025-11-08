@@ -3,6 +3,7 @@ import logging
 from .bme680_sensor.helpers import make_bme680_read_sample
 from .bme680_sensor.reader import BME680Reader
 from .config import load_settings
+from .led import LedController
 from .publisher import run_publisher
 
 
@@ -18,6 +19,9 @@ def main() -> None:
     _setup_logging(settings.log_level)
 
     reader = BME680Reader(settings.i2c_bus, settings.i2c_address)
+    led = LedController(settings.led_blink_on_ms, settings.led_blink_off_ms)
+    # Normal state: LED off
+    led.off()
     run_publisher(
         endpoint_url=settings.endpoint_url,
         post_secret=settings.post_secret,
@@ -28,6 +32,10 @@ def main() -> None:
         spool_db_path=settings.spool_db_path,
         spool_max_rows=settings.spool_max_rows,
         spool_flush_batch=settings.spool_flush_batch,
+        on_send_success=lambda: led.off(),
+        on_send_failure=lambda _e: led.blink(),
+        on_flush_success=lambda flushed: (led.off() if flushed > 0 else None),
+        on_flush_error=lambda _e: led.blink(),
     )
 
 

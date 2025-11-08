@@ -45,6 +45,25 @@ sudo systemctl enable sqa.service
 sudo systemctl start sqa.service
 ```
 
+## PWR LED behavior (Pi 3B+)
+- Normal operation: red PWR LED is OFF
+- Error (no internet or send failure): PWR LED BLINKS using kernel `timer` trigger
+
+Blink timings can be customized via environment:
+```bash
+# Optional (defaults shown)
+LED_BLINK_ON_MS=150
+LED_BLINK_OFF_MS=850
+```
+
+Notes:
+- The PWR LED is binary (no true dim). We rely on `timer` trigger to blink.
+- The service will best-effort set the LED OFF on start and use kernel blinking on errors.
+- To make manual control persistent across reboots, you can add to `/boot/firmware/config.txt` (or `/boot/config.txt`):
+  ```
+  dtparam=pwr_led_trigger=none
+  ```
+
 ## Development
 - Lint/format/typecheck/tests:
 ```bash
