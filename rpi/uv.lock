@@ -355,6 +355,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "smbus2" },
+    { name = "sparkfun-qwiic-veml6030" },
     { name = "tenacity" },
 ]
 
@@ -376,6 +377,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests" },
     { name = "smbus2" },
+    { name = "sparkfun-qwiic-veml6030" },
     { name = "tenacity", specifier = ">=9.1.2" },
 ]
 
@@ -397,6 +399,30 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/10/c9/6d85aa809e107adf85303010a59b340be109c8f815cbedc5c08c73bcffef/smbus2-0.5.0.tar.gz", hash = "sha256:4a5946fd82277870c2878befdb1a29bb28d15cda14ea4d8d2d54cf3d4bdcb035", size = 16950, upload-time = "2024-10-19T09:20:56.746Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/85/9f/2235ba9001e3c29fc342eeb222104420bcb7bac51555f0c034376a744075/smbus2-0.5.0-py2.py3-none-any.whl", hash = "sha256:1a15c3b9fa69357beb038cc0b5d37939702f8bfde1ddc89ca9f17d8461dbe949", size = 11527, upload-time = "2024-10-19T09:20:55.202Z" },
+]
+
+[[package]]
+name = "sparkfun-qwiic-i2c"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "smbus2" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/48/60/7d7cc46d29e92777f0f1c19ec5880f963e25224e41c232ad82a74778855f/sparkfun_qwiic_i2c-2.0.0.tar.gz", hash = "sha256:1e9567815c1c7a4c03fac0d9ca01a24b7deb1368d319b014daa45d965829fab6", size = 11811, upload-time = "2025-03-12T21:20:07.837Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/69/aeaea26f8e614117e8d8658bf26bb7d1612e6418fc0a315fde2452c015f6/sparkfun_qwiic_i2c-2.0.0-py3-none-any.whl", hash = "sha256:75a8f0353fbd3208780f9c0a71cc87d050c7853538d0a7198121b318c0d2ecd5", size = 16041, upload-time = "2025-03-12T21:20:06.593Z" },
+]
+
+[[package]]
+name = "sparkfun-qwiic-veml6030"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sparkfun-qwiic-i2c" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d8/e9/0534f8b684ff75bb4451fb4aab02998159891cfd939ddd73bd9aaf8f97c5/sparkfun_qwiic_veml6030-2.0.0.tar.gz", hash = "sha256:808bf264c4cd3ef6bad3950a51959e2d64bcd0e0ed972ccef760093478e3b8e3", size = 9750, upload-time = "2025-03-12T23:23:50.052Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a4/65/fd94f7b495ab0dbe8605748aee8dc25e4ca4889328186bcbcf161dd0d633/sparkfun_qwiic_veml6030-2.0.0-py3-none-any.whl", hash = "sha256:08591c13e1ef03237c2541f2415c7e3cfa56e017a6d1114ede5775ba99dfb28b", size = 7705, upload-time = "2025-03-12T23:23:48.712Z" },
 ]
 
 [[package]]

@@ -12,6 +12,7 @@ dependencies = [
   "pydantic>=2",
   "python-dotenv>=1.0.0",
   "tenacity>=9.1.2",
+  "sparkfun-qwiic-veml6030",
 ]
 
 [tool.ruff]
@@ -59,7 +60,7 @@ check-fix = "task lint-fix && task format-fix && task typecheck && task test"
 check = "task lint && task format && task typecheck && task test"
 test = "PYTHONPATH=. pytest -q"
 test-cov = "PYTHONPATH=. pytest -q --cov=src --cov-report=term-missing"
-sensor-check = "PYTHONPATH=src python -m bme680_sensor.check_connection"
+sensor-check = "PYTHONPATH=src python -m bme680_sensor.check_connection && PYTHONPATH=src python -m veml6030_sensor.check_connection"
 rpi-run = "python -m src.main"
 
 

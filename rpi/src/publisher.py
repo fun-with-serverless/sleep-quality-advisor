@@ -78,6 +78,7 @@ def run_publisher(
             temp_c=sample.get("temperature_c"),
             humidity_pct=sample.get("humidity_pct"),
             pressure_hpa=sample.get("pressure_hpa"),
+            ambient_lux=sample.get("ambient_lux"),
             iaq=None,
             noise_db=None,
             deviceId=device_id,

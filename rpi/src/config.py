@@ -24,7 +24,10 @@ class Settings(BaseModel):
     warmup_duration_secs: int = Field(default=300, validation_alias="WARMUP_DURATION_SECS")
 
     i2c_bus: int = Field(default=1, validation_alias="I2C_BUS")
+    # Back-compat: I2C_ADDRESS applies to BME680 if specific per-sensor address not provided
     i2c_address: int = Field(default=0x76, validation_alias="I2C_ADDRESS")
+    bme680_i2c_address: int = Field(default=0x76, validation_alias="BME680_I2C_ADDRESS")
+    veml6030_i2c_address: int = Field(default=0x48, validation_alias="VEML6030_I2C_ADDRESS")
 
     log_level: LogLevel = Field(default=LogLevel.INFO, validation_alias="LOG_LEVEL")
     # Offline spool settings
@@ -44,6 +47,8 @@ ENV_KEYS: Final[tuple[str, ...]] = (
     "WARMUP_DURATION_SECS",
     "I2C_BUS",
     "I2C_ADDRESS",
+    "BME680_I2C_ADDRESS",
+    "VEML6030_I2C_ADDRESS",
     "LOG_LEVEL",
     "SPOOL_DB_PATH",
     "SPOOL_MAX_ROWS",
@@ -63,13 +68,21 @@ def load_settings() -> Settings:
             data[key] = os.environ[key]
 
     # Handle hex I2C address if provided
-    if "I2C_ADDRESS" in data:
-        val = data["I2C_ADDRESS"]
-        with contextlib.suppress(Exception):
-            data["I2C_ADDRESS"] = str(int(val, 0))
+    for key in ("I2C_ADDRESS", "BME680_I2C_ADDRESS", "VEML6030_I2C_ADDRESS"):
+        if key in data:
+            val = data[key]
+            with contextlib.suppress(Exception):
+                data[key] = str(int(val, 0))
 
     try:
-        return Settings.model_validate(data)
+        settings = Settings.model_validate(data)
+        # If per-sensor not set explicitly, fall back to generic i2c_address
+        if "BME680_I2C_ADDRESS" not in data:
+            settings.bme680_i2c_address = settings.i2c_address
+        # Only override when generic was explicitly set but per-sensor wasn't.
+        if "VEML6030_I2C_ADDRESS" not in data and "I2C_ADDRESS" in data:
+            settings.veml6030_i2c_address = settings.i2c_address
+        return settings
     except ValidationError as e:
         missing = [k for k in ("ENDPOINT_URL", "POST_SECRET") if k not in data]
         if missing:
