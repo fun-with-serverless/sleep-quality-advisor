@@ -1,0 +1,12 @@
+version = 0.1
+
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "sleep-quality-advisor-streamlit"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_NAMED_IAM"
+s3_prefix = "sleep-quality-advisor-streamlit"
+resolve_s3 = true
+parameter_overrides = "BackendStackName=\"sleep-quality-advisor-backend\""

@@ -1,0 +1,43 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Test files
+tests/
+.pytest_cache/
+*.test.py
+
+# Environment files
+.env
+.env.local
+
+# AWS SAM
+.aws-sam/
+samconfig.toml
+template.yaml
+
+# Misc
+.DS_Store

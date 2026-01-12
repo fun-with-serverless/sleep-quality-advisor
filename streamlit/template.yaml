@@ -1,0 +1,195 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Sleep Quality Advisor - Streamlit Dashboard on ECS Express
+
+Parameters:
+  BackendStackName:
+    Type: String
+    Default: sleep-quality-advisor-backend
+    Description: Name of the backend stack to import table names from
+
+Resources:
+  # ECR Repository for Docker images
+  StreamlitRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: sleep-quality-advisor-streamlit
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 5 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 5
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+  # Secrets Manager secret for authentication credentials
+  # AWS auto-generates username and password
+  StreamlitAuthSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: streamlit/auth/credentials
+      Description: Authentication credentials for Streamlit dashboard
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludePunctuation: true
+
+  # CloudWatch Log Group for container logs
+  StreamlitLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/streamlit-dashboard
+      RetentionInDays: 7
+
+  # Task Execution Role - allows ECS to pull images, write logs, read secrets
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref StreamlitAuthSecret
+
+  # Task Role - allows container to access AWS resources
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub
+                    - arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}
+                    - TableName: !ImportValue
+                        Fn::Sub: "${BackendStackName}-EnvReadingsTable"
+                  - !Sub
+                    - arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}
+                    - TableName: !ImportValue
+                        Fn::Sub: "${BackendStackName}-SleepSessionsTable"
+        - PolicyName: SecretsManagerReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref StreamlitAuthSecret
+
+  # Infrastructure Role - allows ECS Express to manage infrastructure
+  InfrastructureRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  # ECS Cluster
+  StreamlitCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: streamlit-dashboard-cluster
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  # ECS Express Gateway Service
+  StreamlitService:
+    Type: AWS::ECS::ExpressGatewayService
+    Properties:
+      ServiceName: streamlit-dashboard
+      Cluster: !Ref StreamlitCluster
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      InfrastructureRoleArn: !GetAtt InfrastructureRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      Cpu: "512"      # 0.5 vCPU
+      Memory: "1024"  # 1 GB
+      HealthCheckPath: "/_stcore/health"
+      PrimaryContainer:
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitRepository}:latest"
+        ContainerPort: 8501
+        Environment:
+          - Name: TABLE_NAME
+            Value: !ImportValue
+              Fn::Sub: "${BackendStackName}-EnvReadingsTable"
+          - Name: SLEEP_SESSIONS_TABLE
+            Value: !ImportValue
+              Fn::Sub: "${BackendStackName}-SleepSessionsTable"
+          - Name: AUTH_SECRET_NAME
+            Value: !Ref StreamlitAuthSecret
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+        AwsLogsConfiguration:
+          LogDriver: awslogs
+          LogGroupName: !Ref StreamlitLogGroup
+          StreamPrefix: streamlit
+      ScalingTarget:
+        MinCount: 1
+        MaxCount: 2
+        TargetCpuUtilization: 70
+
+Outputs:
+  RepositoryUri:
+    Description: URI of the ECR repository
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitRepository}"
+    Export:
+      Name: !Sub "${AWS::StackName}-RepositoryUri"
+
+  ServiceUrl:
+    Description: URL of the Streamlit dashboard (note - may take a few minutes to become available after deployment)
+    Value: !GetAtt StreamlitService.ServiceUrl
+
+  AuthSecretArn:
+    Description: ARN of the authentication secret (retrieve password with - aws secretsmanager get-secret-value)
+    Value: !Ref StreamlitAuthSecret
+
+  ClusterName:
+    Description: Name of the ECS cluster
+    Value: !Ref StreamlitCluster
