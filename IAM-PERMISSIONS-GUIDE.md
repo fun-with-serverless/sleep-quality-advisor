@@ -4,7 +4,12 @@ This document explains the minimal IAM permissions required to deploy both the b
 
 ## Quick Start
 
-The IAM policy is available in `iam-deployment-policy.json`. You can create an IAM user or role with this policy attached.
+The IAM permissions are split into **two policies** due to AWS's 6144 character limit for managed policies:
+
+- **Part 1** (`iam-deployment-policy-part1.json`): Core services (CloudFormation, Lambda, API Gateway, DynamoDB, S3, IAM)
+- **Part 2** (`iam-deployment-policy-part2.json`): Container services (ECR, ECS, VPC, ALB, ACM)
+
+Both policies must be attached to the same IAM user or role.
 
 ### Option 1: Create IAM User (Recommended for Manual Deployments)
 
@@ -12,15 +17,23 @@ The IAM policy is available in `iam-deployment-policy.json`. You can create an I
 # Create IAM user
 aws iam create-user --user-name sleep-quality-advisor-deployer
 
-# Create policy
+# Create both policies
 aws iam create-policy \
-  --policy-name SleepQualityAdvisorDeploymentPolicy \
-  --policy-document file://iam-deployment-policy.json
+  --policy-name SleepQualityAdvisorDeployment-Part1 \
+  --policy-document file://iam-deployment-policy-part1.json
 
-# Attach policy to user (replace ACCOUNT_ID with your AWS account ID)
+aws iam create-policy \
+  --policy-name SleepQualityAdvisorDeployment-Part2 \
+  --policy-document file://iam-deployment-policy-part2.json
+
+# Attach both policies to user (replace ACCOUNT_ID with your AWS account ID)
 aws iam attach-user-policy \
   --user-name sleep-quality-advisor-deployer \
-  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeploymentPolicy
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeployment-Part1
+
+aws iam attach-user-policy \
+  --user-name sleep-quality-advisor-deployer \
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeployment-Part2
 
 # Create access keys
 aws iam create-access-key --user-name sleep-quality-advisor-deployer
@@ -50,19 +63,48 @@ aws iam create-role \
   --role-name SleepQualityAdvisorDeploymentRole \
   --assume-role-policy-document file://trust-policy.json
 
-# Create and attach policy
+# Create both policies
 aws iam create-policy \
-  --policy-name SleepQualityAdvisorDeploymentPolicy \
-  --policy-document file://iam-deployment-policy.json
+  --policy-name SleepQualityAdvisorDeployment-Part1 \
+  --policy-document file://iam-deployment-policy-part1.json
+
+aws iam create-policy \
+  --policy-name SleepQualityAdvisorDeployment-Part2 \
+  --policy-document file://iam-deployment-policy-part2.json
+
+# Attach both policies to role
+aws iam attach-role-policy \
+  --role-name SleepQualityAdvisorDeploymentRole \
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeployment-Part1
 
 aws iam attach-role-policy \
   --role-name SleepQualityAdvisorDeploymentRole \
-  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeploymentPolicy
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeployment-Part2
 ```
+
+### Option 3: Using AWS Console
+
+If you prefer the AWS Console:
+
+1. Go to **IAM** → **Policies** → **Create policy**
+2. Click **JSON** tab
+3. Paste contents of `iam-deployment-policy-part1.json`
+4. Name it: `SleepQualityAdvisorDeployment-Part1`
+5. Click **Create policy**
+6. Repeat steps 1-5 for `iam-deployment-policy-part2.json` (name: `SleepQualityAdvisorDeployment-Part2`)
+7. Go to **Users** → **Create user** → Name: `sleep-quality-advisor-deployer`
+8. Click **Next** → **Attach policies directly**
+9. Search and select both policies:
+   - `SleepQualityAdvisorDeployment-Part1`
+   - `SleepQualityAdvisorDeployment-Part2`
+10. Click **Next** → **Create user**
+11. Go to user → **Security credentials** → **Create access key**
 
 ## Permission Breakdown
 
-### Core Services (Required for Both Stacks)
+### Part 1: Core Deployment Services (iam-deployment-policy-part1.json)
+
+These permissions are primarily for the backend stack and SAM deployments:
 
 #### CloudFormation (Full Access)
 - **Why**: SAM deployments use CloudFormation to create, update, and delete infrastructure
@@ -126,7 +168,14 @@ aws iam attach-role-policy \
 - **Actions**: Put trace segments
 - **Scope**: All resources
 
-### Streamlit Stack Services
+#### STS (Security Token Service)
+- **Why**: Used by taskipy scripts to get AWS account ID
+- **Actions**: GetCallerIdentity
+- **Scope**: All resources
+
+### Part 2: Container & Networking Services (iam-deployment-policy-part2.json)
+
+These permissions are required for the Streamlit containerized deployment:
 
 #### ECR (Container Registry)
 - **Why**: Store Docker images for Streamlit app
@@ -157,11 +206,6 @@ aws iam attach-role-policy \
 - **Why**: ECS Express creates SSL/TLS certificates
 - **Actions**: Request/delete certificates
 - **Scope**: All certificates
-
-#### STS (Security Token Service)
-- **Why**: Used by taskipy scripts to get AWS account ID
-- **Actions**: GetCallerIdentity
-- **Scope**: All resources
 
 ## Security Considerations
 
@@ -260,14 +304,21 @@ If you encounter authorization errors:
 To remove deployment permissions:
 
 ```bash
-# Detach policy
+# Detach both policies
 aws iam detach-user-policy \
   --user-name sleep-quality-advisor-deployer \
-  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeploymentPolicy
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeployment-Part1
 
-# Delete policy
+aws iam detach-user-policy \
+  --user-name sleep-quality-advisor-deployer \
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeployment-Part2
+
+# Delete both policies
 aws iam delete-policy \
-  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeploymentPolicy
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeployment-Part1
+
+aws iam delete-policy \
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SleepQualityAdvisorDeployment-Part2
 
 # Delete user (optional)
 aws iam delete-user --user-name sleep-quality-advisor-deployer
