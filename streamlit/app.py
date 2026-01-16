@@ -6,6 +6,7 @@ import streamlit as st
 from dotenv import load_dotenv
 import pandas as pd
 
+from src.auth import login, logout
 from src.data import (
     fetch_env_readings,
     fetch_env_readings_days,
@@ -52,6 +53,18 @@ def _load_sleep_summary_cached(day_str: str):
 def main() -> None:
     load_dotenv()
     st.set_page_config(page_title="Sleep QA - Environment Dashboard", layout="wide")
+
+    # Authentication check - show login if not authenticated
+    if not st.session_state.get("authenticated", False):
+        login()
+        return
+
+    # Add logout button in sidebar
+    with st.sidebar:
+        st.write(f"👤 Logged in as: {st.session_state.get('username', 'admin')}")
+        if st.button("🚪 Logout"):
+            logout()
+
     st.title("Environment Dashboard")
 
     # Time window controls (local timezone)
