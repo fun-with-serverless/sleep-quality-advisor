@@ -123,7 +123,7 @@ Resources:
   StreamlitCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: streamlit-dashboard-v2
+      ClusterName: streamlit-dashboard-v3
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
