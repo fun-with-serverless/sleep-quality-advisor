@@ -23,4 +23,4 @@ __pycache__/
 .vscode/
 .idea/
 
-requirements.txt
+requirements.txt.docker-deps/

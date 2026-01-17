@@ -35,18 +35,8 @@ Resources:
             ]
           }
 
-  # Secrets Manager secret for authentication credentials
-  # AWS auto-generates username and password
-  StreamlitAuthSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: streamlit/auth/credentials
-      Description: Authentication credentials for Streamlit dashboard
-      GenerateSecretString:
-        SecretStringTemplate: '{"username": "admin"}'
-        GenerateStringKey: password
-        PasswordLength: 32
-        ExcludePunctuation: true
+  # Note: Secrets Manager secret is created manually outside of CloudFormation
+  # to avoid permission issues with GenerateSecretString
 
   # CloudWatch Log Group for container logs
   StreamlitLogGroup:
@@ -76,7 +66,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Ref StreamlitAuthSecret
+                Resource: arn:aws:secretsmanager:us-east-1:201893381538:secret:streamlit/auth/credentials-*
 
   # Task Role - allows container to access AWS resources
   TaskRole:
@@ -115,7 +105,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Ref StreamlitAuthSecret
+                Resource: arn:aws:secretsmanager:us-east-1:201893381538:secret:streamlit/auth/credentials-*
 
   # Infrastructure Role - allows ECS Express to manage infrastructure
   InfrastructureRole:
@@ -163,17 +153,17 @@ Resources:
             Value: !ImportValue
               Fn::Sub: "${BackendStackName}-SleepSessionsTable"
           - Name: AUTH_SECRET_NAME
-            Value: !Ref StreamlitAuthSecret
+            Value: streamlit/auth/credentials
           - Name: AWS_REGION
             Value: !Ref AWS::Region
         AwsLogsConfiguration:
-          LogDriver: awslogs
-          LogGroupName: !Ref StreamlitLogGroup
-          StreamPrefix: streamlit
+          LogGroup: !Ref StreamlitLogGroup
+          LogStreamPrefix: streamlit
       ScalingTarget:
-        MinCount: 1
-        MaxCount: 2
-        TargetCpuUtilization: 70
+        MinTaskCount: 1
+        MaxTaskCount: 2
+        AutoScalingMetric: AVERAGE_CPU
+        AutoScalingTargetValue: 70
 
 Outputs:
   RepositoryUri:
@@ -184,11 +174,11 @@ Outputs:
 
   ServiceUrl:
     Description: URL of the Streamlit dashboard (note - may take a few minutes to become available after deployment)
-    Value: !GetAtt StreamlitService.ServiceUrl
+    Value: !GetAtt StreamlitService.Endpoint
 
-  AuthSecretArn:
-    Description: ARN of the authentication secret (retrieve password with - aws secretsmanager get-secret-value)
-    Value: !Ref StreamlitAuthSecret
+  AuthSecretName:
+    Description: Name of the authentication secret (retrieve password with - aws secretsmanager get-secret-value)
+    Value: streamlit/auth/credentials
 
   ClusterName:
     Description: Name of the ECS cluster
