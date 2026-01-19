@@ -106,18 +106,7 @@ Resources:
               Service: ecs.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
-      Policies:
-        - PolicyName: CloudWatchLogsAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:DescribeLogGroups
-                  - logs:CreateLogGroup
-                  - logs:PutRetentionPolicy
-                Resource: '*'
+        - arn:aws:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices
 
   # ECS Cluster
   StreamlitCluster:
