@@ -112,7 +112,7 @@ Resources:
   StreamlitCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: streamlit-dashboard-v3
+      ClusterName: sleep-quality-streamlit
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
