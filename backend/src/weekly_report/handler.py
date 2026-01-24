@@ -19,7 +19,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
-from pdf_generator import generate_pdf_report
+from .pdf_generator import generate_pdf_report
 
 
 # Initialize AWS clients

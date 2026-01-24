@@ -9,8 +9,7 @@ import os
 import json
 from typing import Dict, Any
 from strands import Agent
-from strands.models.bedrock import BedrockModelProvider
-from strands.tools import Tool
+from strands.models.bedrock import BedrockModel
 
 
 class HealthAnalyzerAgent:
@@ -171,10 +170,10 @@ Remember: Focus on THIS user's specific data and patterns, not generic sleep adv
     def __init__(self):
         """Initialize the Health Analyzer Agent with Bedrock Claude Sonnet 4."""
 
-        # Initialize Bedrock model provider
-        self.model_provider = BedrockModelProvider(
+        # Initialize Bedrock model
+        self.model = BedrockModel(
             model_id=os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-sonnet-4-20250514-v1:0'),
-            region=os.environ.get('AWS_REGION', 'us-east-1'),
+            region_name=os.environ.get('AWS_REGION', 'us-east-1'),
             max_tokens=4096
         )
 
@@ -194,7 +193,7 @@ Remember: Focus on THIS user's specific data and patterns, not generic sleep adv
             Configured Strands Agent instance
         """
         self.agent = Agent(
-            model_provider=self.model_provider,
+            model=self.model,
             tools=mcp_tools,
             system_prompt=self.SYSTEM_PROMPT,
             max_turns=10  # Allow agent to iterate if needed

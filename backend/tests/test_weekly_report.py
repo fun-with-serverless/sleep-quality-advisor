@@ -82,6 +82,13 @@ def test_get_recipient_email_not_configured(aws_moto: None) -> None:  # type: ig
 
 def test_get_recipient_email_parameter_not_found(aws_moto: None) -> None:  # type: ignore[unused-ignore]
     """Test retrieving email when SSM parameter doesn't exist."""
+    # Delete the parameter that was created in conftest
+    ssm = boto3.client("ssm")
+    try:
+        ssm.delete_parameter(Name="/sleep-advisor/report-email")
+    except Exception:
+        pass
+
     with pytest.raises(ValueError, match="SSM parameter not found"):
         get_recipient_email()
 

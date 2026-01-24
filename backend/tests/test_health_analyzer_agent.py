@@ -24,7 +24,7 @@ def test_health_analyzer_agent_initialization() -> None:
         agent = HealthAnalyzerAgent()
 
         assert agent is not None
-        assert agent.model_provider is not None
+        assert agent.model is not None
         assert agent.agent is None  # Not initialized until create_agent is called
     finally:
         # Cleanup
@@ -46,7 +46,7 @@ def test_health_analyzer_agent_default_config() -> None:
 
     assert agent is not None
     # Should use default model and region
-    assert agent.model_provider is not None
+    assert agent.model is not None
 
 
 def test_health_analyzer_agent_system_prompt() -> None:
