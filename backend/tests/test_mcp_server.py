@@ -1,6 +1,7 @@
 """Unit tests for MCP Server Lambda function."""
 
 import json
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -21,7 +22,7 @@ from .utils import FakeLambdaContext
 
 
 @pytest.fixture
-def sample_sleep_data(aws_moto: None) -> None:  # type: ignore[unused-ignore]
+def sample_sleep_data(aws_moto: None) -> Iterator[None]:  # type: ignore[unused-ignore]
     """Populate DynamoDB with sample sleep session data."""
     ddb = boto3.resource("dynamodb")
     table = ddb.Table("sleep_sessions")
@@ -84,9 +85,17 @@ def sample_sleep_data(aws_moto: None) -> None:  # type: ignore[unused-ignore]
     for item in sleep_data:
         table.put_item(Item=item)
 
+    yield
+
+    # Cleanup: delete all sleep data
+    scan = table.scan()
+    with table.batch_writer() as batch:
+        for item in scan.get('Items', []):
+            batch.delete_item(Key={'sleepDate': item['sleepDate'], 'segmentStart': item['segmentStart']})
+
 
 @pytest.fixture
-def sample_env_data(aws_moto: None) -> None:  # type: ignore[unused-ignore]
+def sample_env_data(aws_moto: None) -> Iterator[None]:  # type: ignore[unused-ignore]
     """Populate DynamoDB with sample environmental data."""
     ddb = boto3.resource("dynamodb")
     table = ddb.Table("env_readings")
@@ -116,6 +125,14 @@ def sample_env_data(aws_moto: None) -> None:  # type: ignore[unused-ignore]
                     "deviceId": "test-device",
                 }
             )
+
+    yield
+
+    # Cleanup: delete all environmental data
+    scan = table.scan()
+    with table.batch_writer() as batch:
+        for item in scan.get('Items', []):
+            batch.delete_item(Key={'day': item['day'], 'ts_min': item['ts_min']})
 
 
 def test_decimal_to_float() -> None:
@@ -276,14 +293,20 @@ def test_correlate_env_with_sleep_no_sleep_data(aws_moto: None) -> None:  # type
 
 def test_correlate_env_with_sleep_no_env_data(sample_sleep_data: None) -> None:  # type: ignore[unused-ignore]
     """Test correlating when no environmental data exists during sleep."""
-    # Clear all environmental data
+    # Clear all environmental data by scanning and deleting
     ddb = boto3.resource("dynamodb")
-    ddb.Table("env_readings")
+    table = ddb.Table("env_readings")
+
+    # Scan and delete all items
+    scan = table.scan()
+    with table.batch_writer() as batch:
+        for item in scan.get('Items', []):
+            batch.delete_item(Key={'day': item['day'], 'ts_min': item['ts_min']})
 
     result = correlate_env_with_sleep("2025-01-13")
 
     assert "env_conditions" in result
-    # Should return error message in env_conditions
+    # Should return error message in env_conditions or no readings
     assert "error" in result["env_conditions"] or result["env_conditions"]["readings_count"] == 0
 
 

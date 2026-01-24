@@ -15,10 +15,19 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from mcp.server.fastmcp import FastMCP
 
-# Initialize DynamoDB client
-dynamodb = boto3.resource('dynamodb')
-env_readings_table = dynamodb.Table(os.environ['ENV_READINGS_TABLE'])
-sleep_sessions_table = dynamodb.Table(os.environ['SLEEP_SESSIONS_TABLE'])
+
+def get_dynamodb_tables() -> tuple[Any, Any]:
+    """
+    Get DynamoDB table resources.
+
+    Creates resources fresh each time to support moto mocking in tests.
+    In production, Lambda container reuse will minimize the overhead.
+    """
+    dynamodb = boto3.resource('dynamodb')
+    env_readings_table = dynamodb.Table(os.environ['ENV_READINGS_TABLE'])
+    sleep_sessions_table = dynamodb.Table(os.environ['SLEEP_SESSIONS_TABLE'])
+    return env_readings_table, sleep_sessions_table
+
 
 # Initialize FastMCP server
 mcp = FastMCP(name="sleep-data-mcp-server")
@@ -50,6 +59,7 @@ def query_sleep_data(start_date: str, end_date: str) -> dict:
         - total_nights: Count of nights with data
     """
     try:
+        _, sleep_sessions_table = get_dynamodb_tables()
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
 
@@ -121,6 +131,7 @@ def query_env_data(start_date: str, end_date: str, metrics: list[str] | None = N
         - metrics_available: List of metrics found in the data
     """
     try:
+        env_readings_table, _ = get_dynamodb_tables()
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
 
@@ -137,10 +148,11 @@ def query_env_data(start_date: str, end_date: str, metrics: list[str] | None = N
             items = response.get('Items', [])
 
             for item in items:
+                ts_min = float(item.get('ts_min', 0))  # Convert Decimal to float
                 reading = {
                     'day': item.get('day'),
                     'ts_min': item.get('ts_min'),
-                    'timestamp': datetime.fromtimestamp(item.get('ts_min', 0) * 60).isoformat(),
+                    'timestamp': datetime.fromtimestamp(ts_min * 60).isoformat(),
                 }
 
                 # Add requested metrics or all if not specified
@@ -252,6 +264,7 @@ def correlate_env_with_sleep(sleep_date: str) -> dict:
         - env_conditions: Average environmental conditions during sleep
     """
     try:
+        env_readings_table, _ = get_dynamodb_tables()
         # Get sleep data for this date
         sleep_data = query_sleep_data(sleep_date, sleep_date)
         nights = sleep_data.get('nights', [])
