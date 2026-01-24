@@ -51,7 +51,7 @@ def test_health_analyzer_agent_default_config() -> None:
 
 def test_health_analyzer_agent_system_prompt() -> None:
     """Test that the agent has a proper system prompt."""
-    agent = HealthAnalyzerAgent()
+    HealthAnalyzerAgent()
 
     assert HealthAnalyzerAgent.SYSTEM_PROMPT is not None
     assert len(HealthAnalyzerAgent.SYSTEM_PROMPT) > 100

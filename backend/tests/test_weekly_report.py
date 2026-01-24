@@ -1,5 +1,6 @@
 """Unit tests for Weekly Report Orchestrator Lambda."""
 
+import contextlib
 import json
 import os
 from datetime import datetime
@@ -84,10 +85,8 @@ def test_get_recipient_email_parameter_not_found(aws_moto: None) -> None:  # typ
     """Test retrieving email when SSM parameter doesn't exist."""
     # Delete the parameter that was created in conftest
     ssm = boto3.client("ssm")
-    try:
+    with contextlib.suppress(Exception):
         ssm.delete_parameter(Name="/sleep-advisor/report-email")
-    except Exception:
-        pass
 
     with pytest.raises(ValueError, match="SSM parameter not found"):
         get_recipient_email()
@@ -156,7 +155,9 @@ def test_lambda_handler_success(
 @patch("src.weekly_report.handler.invoke_agent")
 @patch("src.weekly_report.handler.calculate_week_dates")
 def test_lambda_handler_agent_error(
-    mock_calc_dates: MagicMock, mock_invoke: MagicMock, aws_moto: None  # type: ignore[unused-ignore]
+    mock_calc_dates: MagicMock,
+    mock_invoke: MagicMock,
+    aws_moto: None,  # type: ignore[unused-ignore]
 ) -> None:
     """Test Lambda execution when agent returns error."""
     mock_calc_dates.return_value = ("2025-01-13", "2025-01-19")
@@ -178,7 +179,9 @@ def test_lambda_handler_agent_error(
 @patch("src.weekly_report.handler.invoke_agent")
 @patch("src.weekly_report.handler.calculate_week_dates")
 def test_lambda_handler_invocation_exception(
-    mock_calc_dates: MagicMock, mock_invoke: MagicMock, aws_moto: None  # type: ignore[unused-ignore]
+    mock_calc_dates: MagicMock,
+    mock_invoke: MagicMock,
+    aws_moto: None,  # type: ignore[unused-ignore]
 ) -> None:
     """Test Lambda execution when agent invocation raises exception."""
     mock_calc_dates.return_value = ("2025-01-13", "2025-01-19")

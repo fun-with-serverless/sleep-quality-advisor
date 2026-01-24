@@ -5,9 +5,10 @@ Uses Strands framework with Claude Sonnet 4 to analyze weekly sleep data
 and generate personalized insights based on environmental factors.
 """
 
-import os
 import json
-from typing import Dict, Any
+import os
+from typing import Any, cast
+
 from strands import Agent
 from strands.models.bedrock import BedrockModel
 
@@ -15,7 +16,8 @@ from strands.models.bedrock import BedrockModel
 class HealthAnalyzerAgent:
     """Agent for analyzing sleep health data and generating weekly reports."""
 
-    SYSTEM_PROMPT = """You are an expert sleep health analyst specializing in correlating sleep quality with environmental factors.
+    SYSTEM_PROMPT = """You are an expert sleep health analyst specializing in correlating sleep quality \
+with environmental factors.
 
 Your role is to analyze weekly sleep data and provide personalized, actionable insights.
 
@@ -82,7 +84,8 @@ For EACH environmental factor, analyze the correlation with sleep quality:
 ## 5. Actionable Recommendations
 Provide 2-3 SPECIFIC recommendations based on THIS user's data:
 - NOT generic advice like "maintain consistent schedule"
-- SPECIFIC like "Your best sleep (avg score 87) occurred when bedroom temp was 18-19°C. Consider setting thermostat to 18°C"
+- SPECIFIC like "Your best sleep (avg score 87) occurred when bedroom temp was 18-19°C.
+  Consider setting thermostat to 18°C"
 - Include the data that supports each recommendation
 
 ## 6. Week-over-Week Comparison
@@ -167,20 +170,20 @@ Return your analysis as a structured JSON object with these sections:
 
 Remember: Focus on THIS user's specific data and patterns, not generic sleep advice."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Health Analyzer Agent with Bedrock Claude Sonnet 4."""
 
         # Initialize Bedrock model
         self.model = BedrockModel(
             model_id=os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-sonnet-4-20250514-v1:0'),
             region_name=os.environ.get('AWS_REGION', 'us-east-1'),
-            max_tokens=4096
+            max_tokens=4096,
         )
 
         # MCP tools will be dynamically registered by AgentCore Runtime
         # when it connects to the MCP server Lambda
 
-        self.agent = None
+        self.agent: Agent | None = None
 
     def create_agent(self, mcp_tools: list) -> Agent:
         """
@@ -196,11 +199,10 @@ Remember: Focus on THIS user's specific data and patterns, not generic sleep adv
             model=self.model,
             tools=mcp_tools,
             system_prompt=self.SYSTEM_PROMPT,
-            max_turns=10  # Allow agent to iterate if needed
         )
         return self.agent
 
-    def analyze_week(self, start_date: str, end_date: str) -> Dict[str, Any]:
+    def analyze_week(self, start_date: str, end_date: str) -> dict[str, Any]:
         """
         Generate weekly sleep health report.
 
@@ -225,7 +227,8 @@ Use the available MCP tools to:
 
 Analyze all the data and return a structured JSON report following the format specified in your system prompt.
 
-Be thorough in your analysis, especially the environmental correlations. Identify specific patterns unique to this user."""
+Be thorough in your analysis, especially the environmental correlations.
+Identify specific patterns unique to this user."""
 
         # Invoke the agent
         response = self.agent(prompt)
@@ -233,7 +236,7 @@ Be thorough in your analysis, especially the environmental correlations. Identif
         # Parse and return the response
         try:
             # Extract JSON from response if wrapped in markdown
-            response_text = response
+            response_text = str(response)
             if '```json' in response_text:
                 start = response_text.find('```json') + 7
                 end = response_text.find('```', start)
@@ -244,18 +247,18 @@ Be thorough in your analysis, especially the environmental correlations. Identif
                 response_text = response_text[start:end].strip()
 
             analysis = json.loads(response_text)
-            return analysis
+            return cast(dict[str, Any], analysis)
 
         except json.JSONDecodeError as e:
             # If JSON parsing fails, return the raw response with error flag
             return {
                 'error': 'Failed to parse agent response as JSON',
-                'raw_response': response,
-                'parse_error': str(e)
+                'raw_response': str(response),
+                'parse_error': str(e),
             }
 
 
-def handler(event, context):
+def handler(event: Any, context: Any) -> dict[str, Any]:
     """
     Lambda handler for AgentCore Runtime invocations.
 
@@ -272,38 +275,33 @@ def handler(event, context):
         if not start_date or not end_date:
             return {
                 'statusCode': 400,
-                'body': json.dumps({
-                    'error': 'Missing required parameters: start_date and end_date'
-                })
+                'body': json.dumps({'error': 'Missing required parameters: start_date and end_date'}),
             }
 
         # Initialize agent
         # Note: In AgentCore Runtime, MCP tools are automatically injected
         # For now, we'll create a basic response structure
 
-        analyzer = HealthAnalyzerAgent()
+        HealthAnalyzerAgent()
 
         # In actual deployment, MCP tools would be injected by AgentCore
         # For this implementation, we'll return the configuration
 
         return {
             'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Health Analyzer Agent initialized',
-                'model': os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-sonnet-4-20250514-v1:0'),
-                'start_date': start_date,
-                'end_date': end_date,
-                'status': 'ready'
-            })
+            'body': json.dumps(
+                {
+                    'message': 'Health Analyzer Agent initialized',
+                    'model': os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-sonnet-4-20250514-v1:0'),
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'status': 'ready',
+                }
+            ),
         }
 
     except Exception as e:
-        return {
-            'statusCode': 500,
-            'body': json.dumps({
-                'error': str(e)
-            })
-        }
+        return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}
 
 
 if __name__ == "__main__":

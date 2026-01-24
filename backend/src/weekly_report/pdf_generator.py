@@ -5,24 +5,16 @@ Generates professional PDF reports from sleep health analysis data.
 Uses reportlab for PDF creation with charts and formatted content.
 """
 
+from datetime import UTC, datetime
 from io import BytesIO
-from datetime import datetime
-from typing import Dict, Any
-import io
+from typing import Any
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, Image, KeepTogether
-)
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.graphics.shapes import Drawing
-from reportlab.graphics.charts.barcharts import VerticalBarChart
-from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics.charts.linecharts import HorizontalLineChart
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 def create_header(start_date: str, end_date: str) -> list:
@@ -38,7 +30,7 @@ def create_header(start_date: str, end_date: str) -> list:
         textColor=colors.HexColor('#1a5490'),
         spaceAfter=12,
         alignment=TA_CENTER,
-        fontName='Helvetica-Bold'
+        fontName='Helvetica-Bold',
     )
 
     elements.append(Paragraph("Weekly Sleep Health Report", title_style))
@@ -50,7 +42,7 @@ def create_header(start_date: str, end_date: str) -> list:
         fontSize=12,
         textColor=colors.HexColor('#666666'),
         alignment=TA_CENTER,
-        spaceAfter=6
+        spaceAfter=6,
     )
 
     elements.append(Paragraph(f"{start_date} to {end_date}", date_style))
@@ -62,10 +54,10 @@ def create_header(start_date: str, end_date: str) -> list:
         fontSize=9,
         textColor=colors.HexColor('#999999'),
         alignment=TA_CENTER,
-        spaceAfter=20
+        spaceAfter=20,
     )
 
-    generated_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    generated_time = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     elements.append(Paragraph(f"Generated: {generated_time}", generated_style))
 
     elements.append(Spacer(1, 0.2 * inch))
@@ -73,7 +65,7 @@ def create_header(start_date: str, end_date: str) -> list:
     return elements
 
 
-def create_executive_summary(analysis: Dict[str, Any]) -> list:
+def create_executive_summary(analysis: dict[str, Any]) -> list:
     """Create the executive summary section."""
     elements = []
     styles = getSampleStyleSheet()
@@ -84,7 +76,7 @@ def create_executive_summary(analysis: Dict[str, Any]) -> list:
         fontSize=16,
         textColor=colors.HexColor('#1a5490'),
         spaceAfter=12,
-        fontName='Helvetica-Bold'
+        fontName='Helvetica-Bold',
     )
 
     elements.append(Paragraph("Executive Summary", section_style))
@@ -92,13 +84,7 @@ def create_executive_summary(analysis: Dict[str, Any]) -> list:
     # Key highlights
     if 'executive_summary' in analysis and 'key_highlights' in analysis['executive_summary']:
         for highlight in analysis['executive_summary']['key_highlights']:
-            bullet_style = ParagraphStyle(
-                'Bullet',
-                parent=styles['Normal'],
-                fontSize=11,
-                leftIndent=20,
-                spaceAfter=6
-            )
+            bullet_style = ParagraphStyle('Bullet', parent=styles['Normal'], fontSize=11, leftIndent=20, spaceAfter=6)
             elements.append(Paragraph(f"• {highlight}", bullet_style))
 
     elements.append(Spacer(1, 0.3 * inch))
@@ -106,7 +92,7 @@ def create_executive_summary(analysis: Dict[str, Any]) -> list:
     return elements
 
 
-def create_sleep_quantity_section(analysis: Dict[str, Any]) -> list:
+def create_sleep_quantity_section(analysis: dict[str, Any]) -> list:
     """Create the sleep quantity metrics section with chart."""
     elements = []
     styles = getSampleStyleSheet()
@@ -117,7 +103,7 @@ def create_sleep_quantity_section(analysis: Dict[str, Any]) -> list:
         fontSize=16,
         textColor=colors.HexColor('#1a5490'),
         spaceAfter=12,
-        fontName='Helvetica-Bold'
+        fontName='Helvetica-Bold',
     )
 
     elements.append(Paragraph("Sleep Quantity Metrics", section_style))
@@ -129,27 +115,33 @@ def create_sleep_quantity_section(analysis: Dict[str, Any]) -> list:
     sq = analysis['sleep_quantity']
 
     # Create summary table
+    longest = sq.get('longest_night', {})
+    shortest = sq.get('shortest_night', {})
     data = [
         ['Metric', 'Value'],
         ['Total Hours Slept', f"{sq.get('total_hours', 0):.1f} hours"],
         ['Average Per Night', f"{sq.get('avg_hours_per_night', 0):.1f} hours"],
-        ['Longest Night', f"{sq.get('longest_night', {}).get('hours', 0):.1f} hours ({sq.get('longest_night', {}).get('date', 'N/A')})"],
-        ['Shortest Night', f"{sq.get('shortest_night', {}).get('hours', 0):.1f} hours ({sq.get('shortest_night', {}).get('date', 'N/A')})"],
+        ['Longest Night', f"{longest.get('hours', 0):.1f} hours ({longest.get('date', 'N/A')})"],
+        ['Shortest Night', f"{shortest.get('hours', 0):.1f} hours ({shortest.get('date', 'N/A')})"],
         ['Consistency Score', f"{sq.get('consistency_score', 0):.2f} (lower is better)"],
-        ['vs Recommended', sq.get('vs_recommended', 'N/A')]
+        ['vs Recommended', sq.get('vs_recommended', 'N/A')],
     ]
 
     table = Table(data, colWidths=[3 * inch, 3 * inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    table.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
 
     elements.append(table)
     elements.append(Spacer(1, 0.3 * inch))
@@ -157,7 +149,7 @@ def create_sleep_quantity_section(analysis: Dict[str, Any]) -> list:
     return elements
 
 
-def create_sleep_quality_section(analysis: Dict[str, Any]) -> list:
+def create_sleep_quality_section(analysis: dict[str, Any]) -> list:
     """Create the sleep quality section with pie chart."""
     elements = []
     styles = getSampleStyleSheet()
@@ -168,7 +160,7 @@ def create_sleep_quality_section(analysis: Dict[str, Any]) -> list:
         fontSize=16,
         textColor=colors.HexColor('#1a5490'),
         spaceAfter=12,
-        fontName='Helvetica-Bold'
+        fontName='Helvetica-Bold',
     )
 
     elements.append(Paragraph("Sleep Quality Insights", section_style))
@@ -180,27 +172,50 @@ def create_sleep_quality_section(analysis: Dict[str, Any]) -> list:
     sq = analysis['sleep_quality']
 
     # Create summary table
+    deep = sq.get('deep_sleep', {})
+    rem = sq.get('rem_sleep', {})
+    light = sq.get('light_sleep', {})
+    awake = sq.get('awake_time', {})
+
+    # Format sleep stage rows
+    deep_row = [
+        'Deep Sleep',
+        f"{deep.get('total_hours', 0):.1f} hrs ({deep.get('avg_percent', 0):.1f}%)",
+        deep.get('trend', 'N/A'),
+    ]
+    rem_row = [
+        'REM Sleep',
+        f"{rem.get('total_hours', 0):.1f} hrs ({rem.get('avg_percent', 0):.1f}%)",
+        rem.get('trend', 'N/A'),
+    ]
+    light_row = ['Light Sleep', f"{light.get('total_hours', 0):.1f} hrs ({light.get('avg_percent', 0):.1f}%)", '']
+    awake_row = ['Awake Time', f"{awake.get('total_hours', 0):.1f} hrs ({awake.get('avg_percent', 0):.1f}%)", '']
+
     data = [
         ['Metric', 'Value', 'Trend'],
         ['Average Efficiency', f"{sq.get('avg_efficiency', 0):.1f}%", ''],
         ['Average Score', f"{sq.get('avg_score', 0):.1f}", ''],
-        ['Deep Sleep', f"{sq.get('deep_sleep', {}).get('total_hours', 0):.1f} hrs ({sq.get('deep_sleep', {}).get('avg_percent', 0):.1f}%)", sq.get('deep_sleep', {}).get('trend', 'N/A')],
-        ['REM Sleep', f"{sq.get('rem_sleep', {}).get('total_hours', 0):.1f} hrs ({sq.get('rem_sleep', {}).get('avg_percent', 0):.1f}%)", sq.get('rem_sleep', {}).get('trend', 'N/A')],
-        ['Light Sleep', f"{sq.get('light_sleep', {}).get('total_hours', 0):.1f} hrs ({sq.get('light_sleep', {}).get('avg_percent', 0):.1f}%)", ''],
-        ['Awake Time', f"{sq.get('awake_time', {}).get('total_hours', 0):.1f} hrs ({sq.get('awake_time', {}).get('avg_percent', 0):.1f}%)", '']
+        deep_row,
+        rem_row,
+        light_row,
+        awake_row,
     ]
 
     table = Table(data, colWidths=[2 * inch, 2.5 * inch, 1.5 * inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 11),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    table.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 11),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
 
     elements.append(table)
     elements.append(Spacer(1, 0.3 * inch))
@@ -208,7 +223,7 @@ def create_sleep_quality_section(analysis: Dict[str, Any]) -> list:
     return elements
 
 
-def create_environmental_section(analysis: Dict[str, Any]) -> list:
+def create_environmental_section(analysis: dict[str, Any]) -> list:
     """Create the environmental correlations section."""
     elements = []
     styles = getSampleStyleSheet()
@@ -219,7 +234,7 @@ def create_environmental_section(analysis: Dict[str, Any]) -> list:
         fontSize=16,
         textColor=colors.HexColor('#1a5490'),
         spaceAfter=12,
-        fontName='Helvetica-Bold'
+        fontName='Helvetica-Bold',
     )
 
     elements.append(Paragraph("Environmental Correlations", section_style))
@@ -249,8 +264,9 @@ def create_environmental_section(analysis: Dict[str, Any]) -> list:
     # Light
     if 'light' in env:
         light = env['light']
+        avg_light = light.get('avg_during_sleep', 0)
         elements.append(Paragraph("<b>Light Exposure:</b>", styles['Normal']))
-        elements.append(Paragraph(f"Average During Sleep: {light.get('avg_during_sleep', 0):.1f} lux", styles['Normal']))
+        elements.append(Paragraph(f"Average During Sleep: {avg_light:.1f} lux", styles['Normal']))
         elements.append(Paragraph(f"Impact: {light.get('impact', 'N/A')}", styles['Normal']))
         elements.append(Spacer(1, 0.1 * inch))
 
@@ -275,7 +291,7 @@ def create_environmental_section(analysis: Dict[str, Any]) -> list:
     return elements
 
 
-def create_recommendations_section(analysis: Dict[str, Any]) -> list:
+def create_recommendations_section(analysis: dict[str, Any]) -> list:
     """Create the recommendations section."""
     elements = []
     styles = getSampleStyleSheet()
@@ -286,7 +302,7 @@ def create_recommendations_section(analysis: Dict[str, Any]) -> list:
         fontSize=16,
         textColor=colors.HexColor('#1a5490'),
         spaceAfter=12,
-        fontName='Helvetica-Bold'
+        fontName='Helvetica-Bold',
     )
 
     elements.append(Paragraph("Actionable Recommendations", section_style))
@@ -297,7 +313,7 @@ def create_recommendations_section(analysis: Dict[str, Any]) -> list:
 
     for rec in sorted(analysis['recommendations'], key=lambda x: x.get('priority', 999)):
         # Recommendation box
-        rec_style = ParagraphStyle(
+        ParagraphStyle(
             'Recommendation',
             parent=styles['Normal'],
             fontSize=11,
@@ -305,7 +321,7 @@ def create_recommendations_section(analysis: Dict[str, Any]) -> list:
             spaceAfter=6,
             borderPadding=10,
             borderWidth=1,
-            borderColor=colors.HexColor('#1a5490')
+            borderColor=colors.HexColor('#1a5490'),
         )
 
         rec_text = f"<b>{rec.get('category', 'General')}:</b> {rec.get('recommendation', '')}"
@@ -318,7 +334,7 @@ def create_recommendations_section(analysis: Dict[str, Any]) -> list:
                 fontSize=9,
                 leftIndent=20,
                 textColor=colors.HexColor('#666666'),
-                spaceAfter=12
+                spaceAfter=12,
             )
             elements.append(Paragraph(f"Based on: {rec['supporting_data']}", support_style))
 
@@ -327,7 +343,7 @@ def create_recommendations_section(analysis: Dict[str, Any]) -> list:
     return elements
 
 
-def create_comparison_section(analysis: Dict[str, Any]) -> list:
+def create_comparison_section(analysis: dict[str, Any]) -> list:
     """Create the week-over-week comparison section."""
     elements = []
     styles = getSampleStyleSheet()
@@ -338,7 +354,7 @@ def create_comparison_section(analysis: Dict[str, Any]) -> list:
         fontSize=16,
         textColor=colors.HexColor('#1a5490'),
         spaceAfter=12,
-        fontName='Helvetica-Bold'
+        fontName='Helvetica-Bold',
     )
 
     elements.append(Paragraph("Week-over-Week Comparison", section_style))
@@ -350,13 +366,18 @@ def create_comparison_section(analysis: Dict[str, Any]) -> list:
     wc = analysis['week_comparison']
 
     # Create comparison table
-    def format_trend(value, suffix=''):
+    def format_trend(value: Any, suffix: str = '') -> str:
         if isinstance(value, dict):
             val = value.get('hours', value.get('points', value.get('minutes', 0)))
             trend = value.get('trend', '')
         else:
             val = value
             trend = ''
+
+        # Ensure val is a number
+        if val is None:
+            val = 0.0
+        val = float(val)
 
         arrow = ''
         if trend.lower() == 'improving' or val > 0:
@@ -373,20 +394,24 @@ def create_comparison_section(analysis: Dict[str, Any]) -> list:
         ['Sleep Duration', format_trend(wc.get('sleep_duration_change', {}), ' hrs')],
         ['Efficiency', format_trend(wc.get('efficiency_change', {}), ' pts')],
         ['Score', format_trend(wc.get('score_change', {}), ' pts')],
-        ['Deep Sleep', format_trend(wc.get('deep_sleep_change', {}), ' min')]
+        ['Deep Sleep', format_trend(wc.get('deep_sleep_change', {}), ' min')],
     ]
 
     table = Table(data, colWidths=[3 * inch, 3 * inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    table.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
 
     elements.append(table)
 
@@ -398,7 +423,7 @@ def create_comparison_section(analysis: Dict[str, Any]) -> list:
     return elements
 
 
-def generate_pdf_report(analysis: Dict[str, Any], start_date: str, end_date: str) -> bytes:
+def generate_pdf_report(analysis: dict[str, Any], start_date: str, end_date: str) -> bytes:
     """
     Generate a PDF report from the analysis data.
 
@@ -413,14 +438,7 @@ def generate_pdf_report(analysis: Dict[str, Any], start_date: str, end_date: str
     buffer = BytesIO()
 
     # Create PDF document
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        rightMargin=72,
-        leftMargin=72,
-        topMargin=72,
-        bottomMargin=18
-    )
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
 
     # Build the document
     story = []

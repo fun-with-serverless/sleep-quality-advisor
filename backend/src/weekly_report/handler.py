@@ -9,18 +9,18 @@ Triggered by EventBridge schedule, this Lambda:
 
 """
 
-import os
 import json
+import os
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict, Any
-import boto3
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
+from typing import Any, cast
+
+import boto3
 
 from .pdf_generator import generate_pdf_report
-
 
 # Initialize AWS clients
 bedrock_agentcore = boto3.client('bedrock-agentcore', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
@@ -39,23 +39,16 @@ def calculate_week_dates() -> tuple[str, str]:
 
     # Calculate last Monday
     days_since_monday = (today.weekday() + 7) % 7  # 0 = Monday
-    if days_since_monday == 0:
-        # If today is Monday, go back 7 days to get last Monday
-        last_monday = today - timedelta(days=7)
-    else:
-        # Go back to last Monday
-        last_monday = today - timedelta(days=days_since_monday + 7)
+    # If today is Monday, go back 7 days; otherwise calculate last Monday
+    last_monday = today - timedelta(days=7) if days_since_monday == 0 else today - timedelta(days=days_since_monday + 7)
 
     # Last Sunday is 6 days after last Monday
     last_sunday = last_monday + timedelta(days=6)
 
-    return (
-        last_monday.strftime("%Y-%m-%d"),
-        last_sunday.strftime("%Y-%m-%d")
-    )
+    return (last_monday.strftime("%Y-%m-%d"), last_sunday.strftime("%Y-%m-%d"))
 
 
-def invoke_agent(start_date: str, end_date: str) -> Dict[str, Any]:
+def invoke_agent(start_date: str, end_date: str) -> dict[str, Any]:
     """
     Invoke the Health Analyzer Agent via AgentCore Runtime.
 
@@ -69,11 +62,7 @@ def invoke_agent(start_date: str, end_date: str) -> Dict[str, Any]:
     agent_arn = os.environ['AGENT_ARN']
     session_id = str(uuid.uuid4())
 
-    payload = json.dumps({
-        "start_date": start_date,
-        "end_date": end_date,
-        "generate_report": True
-    }).encode('utf-8')
+    payload = json.dumps({"start_date": start_date, "end_date": end_date, "generate_report": True}).encode('utf-8')
 
     print(f"Invoking agent: {agent_arn}")
     print(f"Session ID: {session_id}")
@@ -81,9 +70,7 @@ def invoke_agent(start_date: str, end_date: str) -> Dict[str, Any]:
 
     try:
         response = bedrock_agentcore.invoke_agent_runtime(
-            agentRuntimeArn=agent_arn,
-            runtimeSessionId=session_id,
-            payload=payload
+            agentRuntimeArn=agent_arn, runtimeSessionId=session_id, payload=payload
         )
 
         # Parse streaming response
@@ -111,10 +98,7 @@ def invoke_agent(start_date: str, end_date: str) -> Dict[str, Any]:
 
         else:
             # Direct response
-            if isinstance(response_body, bytes):
-                full_response = response_body.decode('utf-8')
-            else:
-                full_response = str(response_body)
+            full_response = response_body.decode('utf-8') if isinstance(response_body, bytes) else str(response_body)
 
         print(f"Received response ({len(full_response)} chars)")
 
@@ -134,7 +118,7 @@ def invoke_agent(start_date: str, end_date: str) -> Dict[str, Any]:
 
             analysis = json.loads(full_response)
 
-        return analysis
+        return cast(dict[str, Any], analysis)
 
     except Exception as e:
         print(f"Error invoking agent: {str(e)}")
@@ -157,21 +141,17 @@ def get_recipient_email() -> str:
         if not email or email == 'changeme@example.com':
             raise ValueError(f"Email not configured in SSM parameter: {param_name}")
 
-        return email
+        return str(email)
 
-    except ssm.exceptions.ParameterNotFound:
-        raise ValueError(f"SSM parameter not found: {param_name}")
+    except ssm.exceptions.ParameterNotFound as err:
+        raise ValueError(f"SSM parameter not found: {param_name}") from err
     except Exception as e:
         print(f"Error retrieving email from SSM: {str(e)}")
         raise
 
 
 def send_email_with_pdf(
-    recipient: str,
-    pdf_content: bytes,
-    start_date: str,
-    end_date: str,
-    analysis: Dict[str, Any]
+    recipient: str, pdf_content: bytes, start_date: str, end_date: str, analysis: dict[str, Any]
 ) -> None:
     """
     Send the weekly report via SES with PDF attachment.
@@ -214,22 +194,14 @@ Executive Summary:
 
     # Attach PDF
     pdf_part = MIMEApplication(pdf_content, _subtype='pdf')
-    pdf_part.add_header(
-        'Content-Disposition',
-        'attachment',
-        filename=f'sleep_report_{start_date}_to_{end_date}.pdf'
-    )
+    pdf_part.add_header('Content-Disposition', 'attachment', filename=f'sleep_report_{start_date}_to_{end_date}.pdf')
     msg.attach(pdf_part)
 
     # Send email
     try:
         print(f"Sending email to: {recipient}")
 
-        response = ses.send_raw_email(
-            Source=sender,
-            Destinations=[recipient],
-            RawMessage={'Data': msg.as_string()}
-        )
+        response = ses.send_raw_email(Source=sender, Destinations=[recipient], RawMessage={'Data': msg.as_string()})
 
         print(f"Email sent! Message ID: {response['MessageId']}")
 
@@ -241,7 +213,7 @@ Executive Summary:
         raise
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """
     Main Lambda handler triggered by EventBridge weekly schedule.
 
@@ -282,22 +254,20 @@ def lambda_handler(event, context):
 
         return {
             'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Weekly report sent successfully',
-                'start_date': start_date,
-                'end_date': end_date,
-                'recipient': recipient_email
-            })
+            'body': json.dumps(
+                {
+                    'message': 'Weekly report sent successfully',
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'recipient': recipient_email,
+                }
+            ),
         }
 
     except Exception as e:
         print(f"Error in weekly report orchestrator: {str(e)}")
         import traceback
+
         traceback.print_exc()
 
-        return {
-            'statusCode': 500,
-            'body': json.dumps({
-                'error': str(e)
-            })
-        }
+        return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}

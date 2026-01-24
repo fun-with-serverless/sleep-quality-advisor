@@ -278,7 +278,7 @@ def test_correlate_env_with_sleep_no_env_data(sample_sleep_data: None) -> None: 
     """Test correlating when no environmental data exists during sleep."""
     # Clear all environmental data
     ddb = boto3.resource("dynamodb")
-    table = ddb.Table("env_readings")
+    ddb.Table("env_readings")
 
     result = correlate_env_with_sleep("2025-01-13")
 

@@ -5,11 +5,12 @@ Provides MCP tools for querying sleep sessions and environmental readings
 from DynamoDB tables. Used by the Strands agent for weekly report generation.
 """
 
-import os
 import json
+import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
 from decimal import Decimal
+from typing import Any, cast
+
 import boto3
 from boto3.dynamodb.conditions import Key
 from mcp.server.fastmcp import FastMCP
@@ -23,7 +24,7 @@ sleep_sessions_table = dynamodb.Table(os.environ['SLEEP_SESSIONS_TABLE'])
 mcp = FastMCP(name="sleep-data-mcp-server")
 
 
-def decimal_to_float(obj):
+def decimal_to_float(obj: Any) -> Any:
     """Convert DynamoDB Decimal objects to float for JSON serialization."""
     if isinstance(obj, list):
         return [decimal_to_float(i) for i in obj]
@@ -59,9 +60,7 @@ def query_sleep_data(start_date: str, end_date: str) -> dict:
             date_str = current_date.strftime("%Y-%m-%d")
 
             # Query all items for this date
-            response = sleep_sessions_table.query(
-                KeyConditionExpression=Key('sleepDate').eq(date_str)
-            )
+            response = sleep_sessions_table.query(KeyConditionExpression=Key('sleepDate').eq(date_str))
 
             items = response.get('Items', [])
 
@@ -87,32 +86,25 @@ def query_sleep_data(start_date: str, end_date: str) -> dict:
                             'efficiency': summary.get('efficiency'),
                             'score': summary.get('score'),
                             'bedtime': summary.get('bedtime'),
-                            'risetime': summary.get('risetime')
+                            'risetime': summary.get('risetime'),
                         },
                         'stages': [
-                            {
-                                'stage': s.get('stage'),
-                                'start': s.get('segmentStart'),
-                                'duration_s': s.get('duration_s')
-                            }
+                            {'stage': s.get('stage'), 'start': s.get('segmentStart'), 'duration_s': s.get('duration_s')}
                             for s in sorted(stages, key=lambda x: x.get('segmentStart', ''))
-                        ]
+                        ],
                     }
                     nights.append(night_data)
 
             current_date += timedelta(days=1)
 
-        return decimal_to_float({
-            'nights': nights,
-            'total_nights': len(nights)
-        })
+        return cast(dict[Any, Any], decimal_to_float({'nights': nights, 'total_nights': len(nights)}))
 
     except Exception as e:
         return {'error': str(e), 'nights': [], 'total_nights': 0}
 
 
 @mcp.tool()
-def query_env_data(start_date: str, end_date: str, metrics: Optional[List[str]] = None) -> dict:
+def query_env_data(start_date: str, end_date: str, metrics: list[str] | None = None) -> dict:
     """
     Fetch environmental readings from DynamoDB for a date range.
 
@@ -140,9 +132,7 @@ def query_env_data(start_date: str, end_date: str, metrics: Optional[List[str]] 
             date_str = current_date.strftime("%Y-%m-%d")
 
             # Query all readings for this day
-            response = env_readings_table.query(
-                KeyConditionExpression=Key('day').eq(date_str)
-            )
+            response = env_readings_table.query(KeyConditionExpression=Key('day').eq(date_str))
 
             items = response.get('Items', [])
 
@@ -150,27 +140,27 @@ def query_env_data(start_date: str, end_date: str, metrics: Optional[List[str]] 
                 reading = {
                     'day': item.get('day'),
                     'ts_min': item.get('ts_min'),
-                    'timestamp': datetime.fromtimestamp(item.get('ts_min', 0) * 60).isoformat()
+                    'timestamp': datetime.fromtimestamp(item.get('ts_min', 0) * 60).isoformat(),
                 }
 
                 # Add requested metrics or all if not specified
                 available_metrics = ['temp_c', 'humidity_pct', 'pressure_hpa', 'ambient_lux', 'iaq', 'noise_db']
                 for metric in available_metrics:
-                    if metric in item:
-                        if metrics is None or metric in metrics:
-                            reading[metric] = item[metric]
-                            metrics_found.add(metric)
+                    if metric in item and (metrics is None or metric in metrics):
+                        reading[metric] = item[metric]
+                        metrics_found.add(metric)
 
                 if len(reading) > 3:  # Has at least one metric beyond day/ts_min/timestamp
                     readings.append(reading)
 
             current_date += timedelta(days=1)
 
-        return decimal_to_float({
+        result = {
             'readings': readings,
             'total_readings': len(readings),
-            'metrics_available': sorted(list(metrics_found))
-        })
+            'metrics_available': sorted(list(metrics_found)),
+        }
+        return cast(dict[Any, Any], decimal_to_float(result))
 
     except Exception as e:
         return {'error': str(e), 'readings': [], 'total_readings': 0, 'metrics_available': []}
@@ -215,8 +205,7 @@ def get_sleep_summary_stats(start_date: str, end_date: str) -> dict:
         efficiencies = [n['summary']['efficiency'] for n in nights if n['summary'].get('efficiency')]
         scores = [n['summary']['score'] for n in nights if n['summary'].get('score')]
 
-        sleep_hours = [(n['date'], n['summary']['total_min'] / 60.0)
-                       for n in nights if n['summary']['total_min']]
+        sleep_hours = [(n['date'], n['summary']['total_min'] / 60.0) for n in nights if n['summary']['total_min']]
 
         # Find min/max
         min_sleep = min(sleep_hours, key=lambda x: x[1]) if sleep_hours else (None, 0)
@@ -226,7 +215,7 @@ def get_sleep_summary_stats(start_date: str, end_date: str) -> dict:
         if len(sleep_hours) > 1:
             mean_hours = sum(h for _, h in sleep_hours) / len(sleep_hours)
             variance = sum((h - mean_hours) ** 2 for _, h in sleep_hours) / len(sleep_hours)
-            consistency_score = variance ** 0.5
+            consistency_score = variance**0.5
         else:
             consistency_score = 0
 
@@ -241,7 +230,7 @@ def get_sleep_summary_stats(start_date: str, end_date: str) -> dict:
             'min_sleep_night': {'date': min_sleep[0], 'hours': round(min_sleep[1], 2)},
             'max_sleep_night': {'date': max_sleep[0], 'hours': round(max_sleep[1], 2)},
             'consistency_score': round(consistency_score, 2),
-            'total_nights': len(nights)
+            'total_nights': len(nights),
         }
 
     except Exception as e:
@@ -311,9 +300,9 @@ def correlate_env_with_sleep(sleep_date: str) -> dict:
                 'date': sleep_date,
                 'sleep_window': {
                     'bedtime': datetime.fromtimestamp(bedtime).isoformat(),
-                    'risetime': datetime.fromtimestamp(risetime).isoformat()
+                    'risetime': datetime.fromtimestamp(risetime).isoformat(),
                 },
-                'env_conditions': {'error': 'No environmental data during sleep window'}
+                'env_conditions': {'error': 'No environmental data during sleep window'},
             }
 
         # Calculate averages
@@ -337,18 +326,23 @@ def correlate_env_with_sleep(sleep_date: str) -> dict:
             'iaq_avg': round(sum(iaqs) / len(iaqs), 2) if iaqs else None,
             'noise_avg_db': round(sum(noises) / len(noises), 2) if noises else None,
             'noise_max_db': round(max(noises), 2) if noises else None,
-            'readings_count': len(readings)
+            'readings_count': len(readings),
         }
 
-        return decimal_to_float({
-            'date': sleep_date,
-            'sleep_window': {
-                'bedtime': datetime.fromtimestamp(bedtime).isoformat(),
-                'risetime': datetime.fromtimestamp(risetime).isoformat(),
-                'duration_hours': round((risetime - bedtime) / 3600, 2)
-            },
-            'env_conditions': env_conditions
-        })
+        return cast(
+            dict[Any, Any],
+            decimal_to_float(
+                {
+                    'date': sleep_date,
+                    'sleep_window': {
+                        'bedtime': datetime.fromtimestamp(bedtime).isoformat(),
+                        'risetime': datetime.fromtimestamp(risetime).isoformat(),
+                        'duration_hours': round((risetime - bedtime) / 3600, 2),
+                    },
+                    'env_conditions': env_conditions,
+                }
+            ),
+        )
 
     except Exception as e:
         return {'error': str(e)}
@@ -378,59 +372,35 @@ def get_week_over_week_comparison(current_week_start: str, previous_week_start: 
         previous_end = previous_start + timedelta(days=6)
 
         # Get stats for both weeks
-        current_stats = get_sleep_summary_stats(
-            current_week_start,
-            current_end.strftime("%Y-%m-%d")
-        )
+        current_stats = get_sleep_summary_stats(current_week_start, current_end.strftime("%Y-%m-%d"))
 
-        previous_stats = get_sleep_summary_stats(
-            previous_week_start,
-            previous_end.strftime("%Y-%m-%d")
-        )
+        previous_stats = get_sleep_summary_stats(previous_week_start, previous_end.strftime("%Y-%m-%d"))
 
         if 'error' in current_stats or 'error' in previous_stats:
             return {
                 'current_week': current_stats,
                 'previous_week': previous_stats,
-                'deltas': {'error': 'Missing data for one or both weeks'}
+                'deltas': {'error': 'Missing data for one or both weeks'},
             }
 
         # Calculate deltas
         deltas = {
-            'sleep_hours_delta': round(
-                current_stats['total_sleep_hours'] - previous_stats['total_sleep_hours'], 2
-            ),
-            'avg_sleep_delta': round(
-                current_stats['avg_sleep_hours'] - previous_stats['avg_sleep_hours'], 2
-            ),
-            'efficiency_delta': round(
-                current_stats['avg_efficiency'] - previous_stats['avg_efficiency'], 2
-            ),
-            'score_delta': round(
-                current_stats['avg_score'] - previous_stats['avg_score'], 2
-            ),
-            'deep_sleep_delta': round(
-                current_stats['avg_deep_min'] - previous_stats['avg_deep_min'], 2
-            ),
-            'rem_sleep_delta': round(
-                current_stats['avg_rem_min'] - previous_stats['avg_rem_min'], 2
-            ),
-            'consistency_delta': round(
-                current_stats['consistency_score'] - previous_stats['consistency_score'], 2
-            )
+            'sleep_hours_delta': round(current_stats['total_sleep_hours'] - previous_stats['total_sleep_hours'], 2),
+            'avg_sleep_delta': round(current_stats['avg_sleep_hours'] - previous_stats['avg_sleep_hours'], 2),
+            'efficiency_delta': round(current_stats['avg_efficiency'] - previous_stats['avg_efficiency'], 2),
+            'score_delta': round(current_stats['avg_score'] - previous_stats['avg_score'], 2),
+            'deep_sleep_delta': round(current_stats['avg_deep_min'] - previous_stats['avg_deep_min'], 2),
+            'rem_sleep_delta': round(current_stats['avg_rem_min'] - previous_stats['avg_rem_min'], 2),
+            'consistency_delta': round(current_stats['consistency_score'] - previous_stats['consistency_score'], 2),
         }
 
-        return {
-            'current_week': current_stats,
-            'previous_week': previous_stats,
-            'deltas': deltas
-        }
+        return {'current_week': current_stats, 'previous_week': previous_stats, 'deltas': deltas}
 
     except Exception as e:
         return {'error': str(e)}
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """
     Lambda handler for MCP server.
 
@@ -439,35 +409,33 @@ def lambda_handler(event, context):
     """
     try:
         # Parse the MCP request from the event body
-        body = json.loads(event.get('body', '{}'))
+        json.loads(event.get('body', '{}'))
 
         # For now, return server info
         # The actual MCP protocol handling will be done by FastMCP
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json'
-            },
-            'body': json.dumps({
-                'server': 'sleep-data-mcp-server',
-                'version': '1.0.0',
-                'tools': [
-                    'query_sleep_data',
-                    'query_env_data',
-                    'get_sleep_summary_stats',
-                    'correlate_env_with_sleep',
-                    'get_week_over_week_comparison'
-                ]
-            })
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps(
+                {
+                    'server': 'sleep-data-mcp-server',
+                    'version': '1.0.0',
+                    'tools': [
+                        'query_sleep_data',
+                        'query_env_data',
+                        'get_sleep_summary_stats',
+                        'correlate_env_with_sleep',
+                        'get_week_over_week_comparison',
+                    ],
+                }
+            ),
         }
 
     except Exception as e:
         return {
             'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json'
-            },
-            'body': json.dumps({'error': str(e)})
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'error': str(e)}),
         }
 
 
