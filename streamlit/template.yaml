@@ -9,31 +9,8 @@ Parameters:
     Description: Name of the backend stack to import table names from
 
 Resources:
-  # ECR Repository for Docker images
-  StreamlitRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: sleep-quality-advisor-streamlit
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      LifecyclePolicy:
-        LifecyclePolicyText: |
-          {
-            "rules": [
-              {
-                "rulePriority": 1,
-                "description": "Keep last 5 images",
-                "selection": {
-                  "tagStatus": "any",
-                  "countType": "imageCountMoreThan",
-                  "countNumber": 5
-                },
-                "action": {
-                  "type": "expire"
-                }
-              }
-            ]
-          }
+  # Note: ECR Repository is created manually outside CloudFormation
+  # to avoid chicken-and-egg issue with Docker image push
 
   # Secrets Manager secret for authentication credentials
   # AWS auto-generates username and password
@@ -129,13 +106,13 @@ Resources:
               Service: ecs.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+        - arn:aws:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices
 
   # ECS Cluster
   StreamlitCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: streamlit-dashboard-cluster
+      ClusterName: sleep-quality-streamlit
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
@@ -153,7 +130,7 @@ Resources:
       Memory: "1024"  # 1 GB
       HealthCheckPath: "/_stcore/health"
       PrimaryContainer:
-        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitRepository}:latest"
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sleep-quality-advisor-streamlit:latest"
         ContainerPort: 8501
         Environment:
           - Name: TABLE_NAME
@@ -167,24 +144,24 @@ Resources:
           - Name: AWS_REGION
             Value: !Ref AWS::Region
         AwsLogsConfiguration:
-          LogDriver: awslogs
-          LogGroupName: !Ref StreamlitLogGroup
-          StreamPrefix: streamlit
+          LogGroup: !Ref StreamlitLogGroup
+          LogStreamPrefix: streamlit
       ScalingTarget:
-        MinCount: 1
-        MaxCount: 2
-        TargetCpuUtilization: 70
+        MinTaskCount: 1
+        MaxTaskCount: 2
+        AutoScalingMetric: AVERAGE_CPU
+        AutoScalingTargetValue: 70
 
 Outputs:
   RepositoryUri:
-    Description: URI of the ECR repository
-    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitRepository}"
+    Description: URI of the ECR repository (created manually)
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sleep-quality-advisor-streamlit"
     Export:
       Name: !Sub "${AWS::StackName}-RepositoryUri"
 
   ServiceUrl:
     Description: URL of the Streamlit dashboard (note - may take a few minutes to become available after deployment)
-    Value: !GetAtt StreamlitService.ServiceUrl
+    Value: !GetAtt StreamlitService.Endpoint
 
   AuthSecretArn:
     Description: ARN of the authentication secret (retrieve password with - aws secretsmanager get-secret-value)
