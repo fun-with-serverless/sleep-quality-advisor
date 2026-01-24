@@ -35,3 +35,17 @@ test = "PYTHONPATH=src pytest -q"
 check = "task lint && task format && task typecheck && task test"
 check-fix = "task lint-fix && task format-fix && task typecheck && task test"
 
+# AWS deployment tasks
+ecr-login = "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-1.amazonaws.com"
+build-image = "docker build -t streamlit-app ."
+get-repo-uri = "aws cloudformation describe-stacks --stack-name sleep-quality-advisor-streamlit --query 'Stacks[0].Outputs[?OutputKey==`RepositoryUri`].OutputValue' --output text 2>/dev/null || echo 'Stack not deployed yet - deploy SAM template first'"
+tag-image = "docker tag streamlit-app:latest $(task get-repo-uri):latest"
+push-image = "docker push $(task get-repo-uri):latest"
+sam-build = "sam build"
+sam-deploy = "sam deploy"
+deploy-infra = "task sam-build && task sam-deploy"
+deploy-image = "task ecr-login && task build-image && task tag-image && task push-image"
+deploy-all = "task deploy-infra && task deploy-image"
+get-password = "aws secretsmanager get-secret-value --secret-id streamlit/auth/credentials --query SecretString --output text | python3 -c \"import sys, json; print('Username:', json.load(sys.stdin)['username']); print('Password:', json.load(sys.stdin)['password'])\""
+get-url = "aws cloudformation describe-stacks --stack-name sleep-quality-advisor-streamlit --query 'Stacks[0].Outputs[?OutputKey==`ServiceUrl`].OutputValue' --output text"
+

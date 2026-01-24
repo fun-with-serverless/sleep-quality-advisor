@@ -346,4 +346,16 @@ Outputs:
   FitbitAuthorizeUrl:
     Description: URL for the Fitbit authorize redirect
     Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/fitbit/authorize
-  
+
+  EnvReadingsTableName:
+    Description: Physical name of EnvReadingsTable
+    Value: !Ref EnvReadingsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-EnvReadingsTable"
+
+  SleepSessionsTableName:
+    Description: Physical name of SleepSessionsTable
+    Value: !Ref SleepSessionsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-SleepSessionsTable"
+
