@@ -22,6 +22,14 @@ Parameters:
   ScheduleExpression:
     Type: String
     Default: cron(10 7 * * ? *) # 07:10 UTC daily
+  ReportEmailAddress:
+    Type: String
+    Default: "changeme@example.com"
+    Description: Email address for weekly sleep health reports (must be verified in SES)
+  AgentRuntimeArn:
+    Type: String
+    Default: ""
+    Description: ARN of the Health Analyzer Agent deployed to AgentCore Runtime (populated after agent deployment)
 
 Globals:
   Function:
@@ -334,7 +342,117 @@ Resources:
               - Effect: Allow
                 Action:
                   - sqs:SendMessage
-                Resource: !GetAtt EnvIngestQueue.Arn  
+                Resource: !GetAtt EnvIngestQueue.Arn
+
+  # ========================================================================
+  # Weekly Health Report System
+  # ========================================================================
+
+  # SSM Parameter for report email
+  ReportEmailParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /sleep-advisor/report-email
+      Type: String
+      Value: !Ref ReportEmailAddress
+      Description: Email address for weekly sleep health reports
+
+  # MCP Server Lambda - Provides DynamoDB data access via MCP protocol
+  MCPServerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: mcp_server/handler.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+      MemorySize: 512
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          ENV_READINGS_TABLE: !Ref EnvReadingsTable
+          SLEEP_SESSIONS_TABLE: !Ref SleepSessionsTable
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:GetItem
+              Resource:
+                - !GetAtt EnvReadingsTable.Arn
+                - !GetAtt SleepSessionsTable.Arn
+
+  # Function URL for MCP Server (allows AgentCore agent to invoke)
+  MCPServerFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt MCPServerFunction.Arn
+      AuthType: AWS_IAM
+      Cors:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - POST
+          - GET
+        AllowHeaders:
+          - "*"
+
+  # Permission for Function URL
+  MCPServerFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MCPServerFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: AWS_IAM
+
+  # Weekly Report Orchestrator Lambda
+  WeeklyReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: weekly_report/handler.lambda_handler
+      Runtime: python3.12
+      Timeout: 300
+      MemorySize: 1024
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          AGENT_ARN: !Ref AgentRuntimeArn
+          EMAIL_PARAMETER_NAME: /sleep-advisor/report-email
+          SENDER_EMAIL: !Ref ReportEmailAddress
+          AWS_REGION: !Ref AWS::Region
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            # Permission to invoke AgentCore Runtime
+            - Effect: Allow
+              Action:
+                - bedrock-agentcore:InvokeAgentRuntime
+              Resource: !Ref AgentRuntimeArn
+              Condition:
+                StringEquals:
+                  "aws:RequestedRegion": !Ref AWS::Region
+            # Permission to read email from SSM
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sleep-advisor/report-email"
+            # Permission to send email via SES
+            - Effect: Allow
+              Action:
+                - ses:SendRawEmail
+                - ses:SendEmail
+              Resource: "*"
+      Events:
+        WeeklySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: "cron(0 8 ? * MON *)"  # Every Monday at 8:00 AM UTC
+            Description: Trigger weekly sleep health report generation
+            Enabled: true
 
 Outputs:
   ApiUrl:
@@ -358,4 +476,20 @@ Outputs:
     Value: !Ref SleepSessionsTable
     Export:
       Name: !Sub "${AWS::StackName}-SleepSessionsTable"
+
+  MCPServerFunctionUrl:
+    Description: MCP Server Function URL (used by AgentCore agent)
+    Value: !GetAtt MCPServerFunctionUrl.FunctionUrl
+
+  MCPServerFunctionArn:
+    Description: MCP Server Function ARN
+    Value: !GetAtt MCPServerFunction.Arn
+
+  WeeklyReportFunctionArn:
+    Description: Weekly Report Orchestrator Function ARN
+    Value: !GetAtt WeeklyReportFunction.Arn
+
+  ReportEmailParameter:
+    Description: SSM Parameter name for report email
+    Value: /sleep-advisor/report-email
 

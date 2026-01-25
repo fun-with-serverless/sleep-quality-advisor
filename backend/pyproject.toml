@@ -47,6 +47,9 @@ dev = [
     "pytest-cov>=7.0.0",
     "ruff>=0.13.2",
     "taskipy>=1.14.1",
+    "mcp>=1.0.0",
+    "reportlab>=4.0.0",
+    "strands-agents>=0.1.0",
 ]
 
 [tool.taskipy.tasks]
@@ -55,8 +58,8 @@ lint-fix = "ruff check . --fix"
 format = "ruff format --check ."
 format-fix = "ruff format ."
 typecheck = "mypy --config-file mypy.ini src"
-check-fix = "task lint-fix && task format-fix && task typecheck && task test && sam validate"
-check = "task lint && task format && task typecheck && task test && sam validate"
+check-fix = "task lint-fix && task format-fix && task typecheck && task test && sam validate --region us-east-1"
+check = "task lint && task format && task typecheck && task test && sam validate --region us-east-1"
 test = "PYTHONPATH=src pytest -q"
 test-cov = "PYTHONPATH=src pytest -q --cov=src --cov-report=term-missing"
 build = "uv export --frozen --no-dev --no-editable -o src/requirements.txt && sam build"

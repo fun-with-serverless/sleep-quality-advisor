@@ -25,6 +25,12 @@ os.environ.setdefault("FITBIT_CODE_VERIFIER_SECRET_NAME", "fitbit/code/verifier"
 os.environ.setdefault("FITBIT_REFRESH_SECRET_NAME", "fitbit/refresh/token")
 os.environ.setdefault("FITBIT_CLIENT_SECRET_NAME", "fitbit/client/secret")
 
+# Defaults for weekly report system
+os.environ.setdefault("AGENT_ARN", "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/test-agent")
+os.environ.setdefault("EMAIL_PARAMETER_NAME", "/sleep-advisor/report-email")
+os.environ.setdefault("SENDER_EMAIL", "test@example.com")
+os.environ.setdefault("BEDROCK_MODEL_ID", "anthropic.claude-sonnet-4-20250514-v1:0")
+
 
 @pytest.fixture(scope="session", autouse=True)
 def aws_moto() -> Iterator[None]:

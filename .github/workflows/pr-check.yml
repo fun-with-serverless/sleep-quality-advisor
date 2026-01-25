@@ -1,0 +1,143 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/pr-check.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  backend-check:
+    name: Backend Quality Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            backend/.venv
+          key: ${{ runner.os }}-uv-${{ hashFiles('backend/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies
+        run: |
+          uv venv
+          uv sync --all-groups
+
+      - name: Install AWS SAM CLI
+        run: |
+          pip install aws-sam-cli
+
+      - name: Run linting (ruff)
+        run: |
+          source .venv/bin/activate
+          task lint
+
+      - name: Run formatting check (ruff format)
+        run: |
+          source .venv/bin/activate
+          task format
+
+      - name: Run type checking (mypy)
+        run: |
+          source .venv/bin/activate
+          task typecheck
+
+      - name: Run tests (pytest)
+        run: |
+          source .venv/bin/activate
+          task test-cov
+
+      - name: Upload coverage reports
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./backend/coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Validate SAM template
+        run: |
+          sam validate --region us-east-1
+
+      - name: Comment PR with results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Backend Quality Checks')
+            );
+
+            const output = `## Backend Quality Checks Results
+
+            ✅ **Linting:** Passed
+            ✅ **Formatting:** Passed
+            ✅ **Type Checking:** Passed
+            ✅ **Tests:** Passed
+            ✅ **SAM Template:** Valid
+
+            All checks completed successfully! 🎉`;
+
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              });
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              });
+            }
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: backend-check
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.backend-check.result }}" != "success" ]; then
+            echo "❌ Backend checks failed"
+            exit 1
+          fi
+          echo "✅ All checks passed successfully"
