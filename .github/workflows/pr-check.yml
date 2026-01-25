@@ -84,7 +84,7 @@ jobs:
 
       - name: Validate SAM template
         run: |
-          sam validate
+          sam validate --region us-east-1
 
       - name: Comment PR with results
         if: always()
